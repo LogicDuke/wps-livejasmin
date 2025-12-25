@@ -126,7 +126,8 @@ function LVJM_pageImportVideos() {
                 videoFilterKW: '',
                 videosFilters: [],
                 importingVideos: false,
-                savedCheckedVideosCounter: 0
+                savedCheckedVideosCounter: 0,
+                thumbPlaceholder: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="%23f3f3f3"/><text x="50%" y="50%" text-anchor="middle" fill="%23999" font-size="16" font-family="Arial" dy="5">Thumb unavailable</text></svg>'
             },
             computed: {
                 siteIsHttps: function () {
@@ -391,6 +392,8 @@ function LVJM_pageImportVideos() {
                 },
                 searchVideos: function (method, feedId) {
 
+                    var self = this;
+
                     if (this.searchBtnClass == 'disabled' && method != 'update') return;
 
                     if( method == 'update' ) window.scrollTo(0, jQuery('#search-top').offset().top - 25);
@@ -475,17 +478,22 @@ function LVJM_pageImportVideos() {
                                     } else if (typeof video.thumbs_urls === 'string' && video.thumbs_urls.length) {
                                         normalizedThumbs = video.thumbs_urls.split(',');
                                     }
+                                    normalizedThumbs = normalizedThumbs.map(function (thumb) {
+                                        return self.normalizeThumbUrl(thumb);
+                                    });
                                     normalizedThumbs = normalizedThumbs.filter(function (thumb) {
                                         return typeof thumb === 'string' && thumb.trim() !== '';
                                     });
+                                    var normalizedThumbUrl = self.normalizeThumbUrl(video.thumb_url);
                                     videos.push({
                                         id: video.id,
                                         title: video.title,
-                                        thumb_url: video.thumb_url,
+                                        thumb_url: normalizedThumbUrl,
                                         thumbs_urls: normalizedThumbs,
                                         thumbs_loading: false,
                                         thumbs_loaded: normalizedThumbs.length > 0,
                                         thumbs_status: normalizedThumbs.length > 0 ? 'ok' : '',
+                                        thumb_error: false,
                                         partner_id: partner && partner.id ? partner.id : this.selectedPartner,
                                         partner_locale: partner && partner.locale ? partner.locale : '',
                                         trailer_url: video.trailer_url,
@@ -505,6 +513,14 @@ function LVJM_pageImportVideos() {
                                             removing: false
                                         }
                                     });
+                                    if (self.data && self.data.debugImporter) {
+                                        console.log('[TMW-FIX] Card thumb render', {
+                                            video_id: video.id,
+                                            thumb_url: normalizedThumbUrl,
+                                            first_thumb: normalizedThumbs.length ? normalizedThumbs[0] : '',
+                                            https: self.siteIsHttps
+                                        });
+                                    }
                                 });
                             } else {
                                 this.videosSearchedErrors = response.body.errors;
@@ -683,6 +699,46 @@ function LVJM_pageImportVideos() {
                 hasThumbs: function (video) {
                     return video && Array.isArray(video.thumbs_urls) && video.thumbs_urls.length > 0;
                 },
+                normalizeThumbUrl: function (url) {
+                    if (!url || typeof url !== 'string') {
+                        return url;
+                    }
+                    var trimmed = url.trim();
+                    if (trimmed.indexOf('//') === 0) {
+                        trimmed = 'https:' + trimmed;
+                    }
+                    if (this.siteIsHttps && trimmed.indexOf('http://') === 0) {
+                        trimmed = trimmed.replace(/^http:\/\//i, 'https://');
+                    }
+                    return trimmed;
+                },
+                getDisplayThumb: function (video) {
+                    if (!video || video.thumb_error) {
+                        return this.thumbPlaceholder;
+                    }
+                    var thumbUrl = video && video.thumb_url ? this.normalizeThumbUrl(video.thumb_url) : '';
+                    return thumbUrl || this.thumbPlaceholder;
+                },
+                handleThumbError: function (video, event) {
+                    if (!video) {
+                        return;
+                    }
+                    this.$set(video, 'thumb_error', true);
+                    if (this.data && this.data.debugImporter) {
+                        var target = event && event.target ? event.target : {};
+                        console.warn('[TMW-FIX] Thumb failed to load', {
+                            video_id: video.id,
+                            attempted: target.currentSrc || (target.getAttribute ? target.getAttribute('src') : null),
+                            original: video.thumb_url
+                        });
+                    }
+                },
+                handleThumbLoad: function (video) {
+                    if (!video) {
+                        return;
+                    }
+                    this.$set(video, 'thumb_error', false);
+                },
                 shouldShowThumbsTab: function (video) {
                     return !!(video && (this.hasThumbs(video) || video.thumb_url || video.thumbs_loading || video.thumbs_loaded));
                 },
@@ -700,6 +756,10 @@ function LVJM_pageImportVideos() {
                         return 'thumbs_urls_empty';
                     }
                     return 'thumbs_ready';
+                },
+                getNoThumbsDebug: function (video) {
+                    var status = video && video.thumbs_status ? video.thumbs_status : 'unknown';
+                    return 'No thumbs returned (' + status + '). Check console for blocked image URLs or mixed content issues.';
                 },
                 logThumbDebug: function (context, video) {
                     if (!this.data || !this.data.debugImporter) {
@@ -756,31 +816,47 @@ function LVJM_pageImportVideos() {
                         })
                     .then((response) => {
                         var payload = response.body && response.body.data ? response.body.data : response.body;
+                        var existingThumbs = Array.isArray(video.thumbs_urls) ? video.thumbs_urls.slice() : [];
+                        var incomingThumbs = payload && Array.isArray(payload.thumbs_urls) ? payload.thumbs_urls : [];
                         if (payload && Array.isArray(payload.thumbs_urls)) {
-                            video.thumbs_urls = payload.thumbs_urls.filter(function (thumb) {
+                            video.thumbs_urls = payload.thumbs_urls.map(this.normalizeThumbUrl).filter(function (thumb) {
                                 return typeof thumb === 'string' && thumb.trim() !== '';
                             });
                         } else if (payload && payload.thumbs_urls && typeof payload.thumbs_urls === 'string') {
-                            video.thumbs_urls = payload.thumbs_urls.split(',').filter(function (thumb) {
+                            video.thumbs_urls = payload.thumbs_urls.split(',').map(this.normalizeThumbUrl).filter(function (thumb) {
                                 return typeof thumb === 'string' && thumb.trim() !== '';
                             });
                         } else {
                             video.thumbs_urls = [];
                         }
                         if (payload && payload.thumb_url && !video.thumb_url) {
-                            video.thumb_url = payload.thumb_url;
+                            video.thumb_url = this.normalizeThumbUrl(payload.thumb_url);
                         }
                         if (payload && payload.status) {
                             video.thumbs_status = payload.status;
+                        } else if (!video.thumbs_status && video.thumbs_urls.length > 0) {
+                            video.thumbs_status = 'ok';
                         }
+                        var incomingCount = incomingThumbs.length;
+                        if (video.thumbs_urls.length === 0 && existingThumbs.length > 0) {
+                            video.thumbs_urls = existingThumbs;
+                        }
+                        if (existingThumbs.length > 0 && video.thumbs_urls.length > 0 && video.thumbs_status === 'no_thumbnails') {
+                            video.thumbs_status = 'ok';
+                        }
+                        var chosenSource = incomingCount > 0 ? 'details' : (existingThumbs.length > 0 ? 'search' : 'none');
                         video.thumbs_loaded = true;
                         if (this.data && this.data.debugImporter) {
                             console.log('[TMW-FIX] Thumbs response', {
                                 video_id: video.id,
                                 thumbs_status: video.thumbs_status,
                                 thumbs_urls_length: Array.isArray(video.thumbs_urls) ? video.thumbs_urls.length : 0,
-                                thumb_url: video.thumb_url
+                                thumb_url: video.thumb_url,
+                                thumbs_from_search: existingThumbs.length,
+                                thumbs_from_details: incomingCount,
+                                used_source: chosenSource
                             });
+                            console.log('[TMW-FIX] Thumbs counts', 'thumbs from search: ' + existingThumbs.length + ', thumbs from details: ' + incomingCount + ', using: ' + chosenSource);
                         }
                     }, (response) => {
                         video.thumbs_loaded = true;

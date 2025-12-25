@@ -47,6 +47,14 @@ function lvjm_log_importer_video_debug( $context, $video ) {
     }
 }
 
+function lvjm_normalize_thumb_urls( $thumbs_urls ) {
+    $normalized = array();
+    foreach ( (array) $thumbs_urls as $thumb ) {
+        $normalized[] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb ) : $thumb;
+    }
+    return array_values( array_unique( array_filter( $normalized ) ) );
+}
+
 function lvjm_find_model_video_ids( $performer_query ) {
     $performer_query = lvjm_normalize_performer_name( $performer_query );
     if ( '' === $performer_query ) {
@@ -260,6 +268,7 @@ function lvjm_search_videos( $params = '' ) {
             }
 
             $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
+            $thumbs_urls = lvjm_normalize_thumb_urls( $thumbs_urls );
             $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) ) );
             if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
                 $thumb_url = $thumbs_urls[0];
@@ -305,6 +314,21 @@ function lvjm_search_videos( $params = '' ) {
                 )
             );
             $videos[] = $video_entry;
+            if ( lvjm_debug_importer_enabled() ) {
+                $details_url = isset( $GLOBALS['lvjm_vpapi_last_details_url'] ) ? lvjm_mask_sensitive_payload( $GLOBALS['lvjm_vpapi_last_details_url'] ) : 'n/a';
+                lvjm_importer_log(
+                    'info',
+                    sprintf(
+                        'Performer CSV thumbs video_id=%s partner_id=%s locale=%s thumb_url=%s thumbs_samples=%s details_url=%s',
+                        $video_id,
+                        $partner_id,
+                        $locale,
+                        $thumb_url,
+                        empty( $thumbs_urls ) ? 'none' : implode( ',', array_slice( $thumbs_urls, 0, 2 ) ),
+                        $details_url
+                    )
+                );
+            }
             lvjm_log_importer_video_debug( 'performer_csv', $video_entry );
             ++$added;
             if ( $added >= $limit ) {
@@ -339,8 +363,32 @@ function lvjm_search_videos( $params = '' ) {
     $search_videos = new LVJM_Search_Videos( $params );
     if ( ! $search_videos->has_errors() ) {
         $videos = $search_videos->get_videos();
+        foreach ( $videos as &$video ) {
+            if ( isset( $video['thumb_url'] ) && function_exists( 'lvjm_https_url' ) ) {
+                $video['thumb_url'] = lvjm_https_url( $video['thumb_url'] );
+            }
+            if ( isset( $video['thumbs_urls'] ) ) {
+                $video['thumbs_urls'] = lvjm_normalize_thumb_urls( $video['thumbs_urls'] );
+            }
+        }
+        unset( $video );
         if ( ! empty( $videos ) && isset( $videos[0] ) ) {
             lvjm_log_importer_video_debug( 'normal_search', $videos[0] );
+            if ( lvjm_debug_importer_enabled() ) {
+                $first = $videos[0];
+                $first_samples = isset( $first['thumbs_urls'] ) ? array_slice( (array) $first['thumbs_urls'], 0, 2 ) : array();
+                lvjm_importer_log(
+                    'info',
+                    sprintf(
+                        'Search thumbs video_id=%s partner_id=%s locale=%s thumb_url=%s thumbs_samples=%s',
+                        isset( $first['id'] ) ? $first['id'] : 'n/a',
+                        isset( $params['partner']['id'] ) ? $params['partner']['id'] : 'n/a',
+                        isset( $params['partner']['locale'] ) ? $params['partner']['locale'] : ( isset( $params['locale'] ) ? $params['locale'] : '' ),
+                        isset( $first['thumb_url'] ) ? $first['thumb_url'] : '',
+                        empty( $first_samples ) ? 'none' : implode( ',', $first_samples )
+                    )
+                );
+            }
         }
     }
 

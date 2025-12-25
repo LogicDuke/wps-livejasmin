@@ -86,14 +86,24 @@ class LVJM_Item {
 			$item['actors'] = '';
 		}
 
-		return array(
-			'id'           => (string) $item['id'],
-			'title'        => (string) $item['title'],
-			'desc'         => (string) $item['desc'],
-			'tags'         => (string) $item['tags'],
-			'duration'     => (string) self::get_length_in_seconds( $item ),
-			'thumb_url'    => (string) $item['thumb_url'],
-			'thumbs_urls'  => (array) $item['thumbs_urls'],
+                $thumb_url   = isset( $item['thumb_url'] ) ? (string) $item['thumb_url'] : '';
+                $thumbs_urls = isset( $item['thumbs_urls'] ) ? (array) $item['thumbs_urls'] : array();
+
+                if ( function_exists( 'lvjm_https_url' ) ) {
+                        $thumb_url = lvjm_https_url( $thumb_url );
+                        $thumbs_urls = array_map( 'lvjm_https_url', array_map( 'strval', $thumbs_urls ) );
+                }
+
+                $thumbs_urls = array_values( array_unique( array_filter( $thumbs_urls ) ) );
+
+                return array(
+                        'id'           => (string) $item['id'],
+                        'title'        => (string) $item['title'],
+                        'desc'         => (string) $item['desc'],
+                        'tags'         => (string) $item['tags'],
+                        'duration'     => (string) self::get_length_in_seconds( $item ),
+                        'thumb_url'    => $thumb_url,
+                        'thumbs_urls'  => $thumbs_urls,
 			'trailer_url'  => (string) $item['trailer_url'],
 			'video_url'    => (string) $item['video_url'],
 			'tracking_url' => (string) $item['tracking_url'],

@@ -38,12 +38,26 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER && '' !== $force ) {
 			$use_cache = false;
 		}
-		if ( $use_cache ) {
-			$cached = get_transient( $cache_key );
-			if ( is_array( $cached ) ) {
-				wp_send_json_success( $cached );
-			}
-		}
+                if ( $use_cache ) {
+                        $cached = get_transient( $cache_key );
+                        if ( is_array( $cached ) ) {
+                                if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+                                        lvjm_importer_log(
+                                                'info',
+                                                sprintf(
+                                                        'Thumbs cache hit video_id=%s partner_id=%s locale=%s status=%s thumb_url=%s thumbs_samples=%s',
+                                                        $video_id,
+                                                        $partner_id,
+                                                        $locale,
+                                                        isset( $cached['status'] ) ? $cached['status'] : 'n/a',
+                                                        isset( $cached['thumb_url'] ) ? $cached['thumb_url'] : '',
+                                                        empty( $cached['thumbs_urls'] ) ? 'none' : implode( ',', array_slice( (array) $cached['thumbs_urls'], 0, 2 ) )
+                                                )
+                                        );
+                                }
+                                wp_send_json_success( $cached );
+                        }
+                }
 
 		$details_payload = lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale );
 		$details_video   = lvjm_extract_vpapi_video_object( $details_payload );
@@ -98,19 +112,35 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			wp_send_json_success( $payload );
 		}
 
-		$thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
-		$thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) );
-		$thumb_url   = lvjm_https_url( $thumb_url );
+                $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
+                $thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) );
+                $thumb_url   = lvjm_https_url( $thumb_url );
 
 		if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
 			$thumb_url = $thumbs_urls[0];
 		}
 
-		$payload = array(
-			'thumbs_urls' => $thumbs_urls,
-			'thumb_url'   => $thumb_url,
-			'status'      => empty( $thumbs_urls ) ? 'no_thumbnails' : 'ok',
-		);
+                $payload = array(
+                        'thumbs_urls' => $thumbs_urls,
+                        'thumb_url'   => $thumb_url,
+                        'status'      => empty( $thumbs_urls ) ? 'no_thumbnails' : 'ok',
+                );
+
+                if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+                        $details_url = isset( $GLOBALS['lvjm_vpapi_last_details_url'] ) ? lvjm_mask_sensitive_payload( $GLOBALS['lvjm_vpapi_last_details_url'] ) : 'n/a';
+                        lvjm_importer_log(
+                                'info',
+                                sprintf(
+                                        'Thumbs response video_id=%s partner_id=%s locale=%s details_url=%s thumb_url=%s thumbs_samples=%s',
+                                        $video_id,
+                                        $partner_id,
+                                        $locale,
+                                        $details_url,
+                                        $thumb_url,
+                                        empty( $thumbs_urls ) ? 'none' : implode( ',', array_slice( $thumbs_urls, 0, 2 ) )
+                                )
+                        );
+                }
 
 		if ( 'ok' === $payload['status'] ) {
 			set_transient( $cache_key, $payload, 12 * HOUR_IN_SECONDS );

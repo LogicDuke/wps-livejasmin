@@ -266,7 +266,7 @@ function lvjm_import_videos_page() {
 														<div v-for="(video, index) in videos" class="col-xs-12 col-sm-6 col-md-3 col-lg-2 item-cards" v-bind:key="video.id">
 															<div class="video" v-bind:class="{'grabbed': video.grabbed, 'checked': video.checked}" >
 																<div class="video-img" v-on:mouseenter="ensureVideoThumbnails(video, 'card-hover')" v-on:click.prevent="setCurrentVideo(video, index)">
-																	<img class="img-responsive" src="<?php echo esc_html( LVJM_URL ); ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
+                                                                                                                           <img class="img-responsive" v-bind:src="getDisplayThumb(video)" v-img="video.thumb_url" v-on:error="handleThumbError(video, $event)" v-on:load="handleThumbLoad(video)" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
 																	<div class="video-data" data-toggle="modal" data-target="#video-preview-modal">
 																		<span class="video-duration"><i class="fa fa-clock-o" aria-hidden="true"></i> <small>{{video.duration | timeFormat}}</small></span>
 																		<span v-if="hasThumbs(video)" class="video-has-thumbs"> <small><i class="fa fa-th-large" aria-hidden="true"></i> {{video.thumbs_urls.length}}</small></span>
@@ -311,8 +311,8 @@ function lvjm_import_videos_page() {
 																		</td>
 																		<td v-else class="item-list-toggle" width="35"></td>
 																		<td width="100">
-																			<img v-if="!video.grabbed" width="100" v-on:click.prevent="setCurrentVideo(video, index)" class="pointer" src="<?php echo 'lvjm_lang'; ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
-																			<img v-else width="100"  src="<?php echo 'lvjm_lang'; ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" v-bind:alt="video.title" />
+                                                                                                                           <img v-if="!video.grabbed" width="100" v-on:click.prevent="setCurrentVideo(video, index)" class="pointer" v-bind:src="getDisplayThumb(video)" v-img="video.thumb_url" v-on:error="handleThumbError(video, $event)" v-on:load="handleThumbLoad(video)" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
+                                                                                                                           <img v-else width="100"  v-bind:src="getDisplayThumb(video)" v-img="video.thumb_url" v-on:error="handleThumbError(video, $event)" v-on:load="handleThumbLoad(video)" v-bind:alt="video.title" />
 																		</td>
 																		<template v-if="video.grabbed">
 																			<td colspan="3" class="video-td-imported"><?php esc_html_e( 'Video imported', 'lvjm_lang' ); ?></td>
@@ -417,7 +417,7 @@ function lvjm_import_videos_page() {
 																				<div class="row">
 																					<div class="col-xs-12">
 																						<div v-if="!selectedPartnerObject.filters.https && siteIsHttps" class="text-center text-danger">
-																							<img class="img-responsive" v-bind:src="currentVideo.thumb_url">
+                                                                                                                           <img class="img-responsive" v-bind:src="getDisplayThumb(currentVideo)" v-on:error="handleThumbError(currentVideo, $event)" v-on:load="handleThumbLoad(currentVideo)">
 																							<div class="alert alert-danger text-center margin-top-10 margin-bottom-0" role="alert">
 																								<p><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> <strong>{{selectedPartnerObject.name}} <?php esc_html_e( 'Embed Code does NOT work with SSL (HTTPS://)', 'lvjm_lang' ); ?></strong></p>
 																							</div>
@@ -429,7 +429,7 @@ function lvjm_import_videos_page() {
 																									<i class="fa fa-spinner fa-pulse fa-3x" aria-hidden="true"></i>
 																								</div>
 																							</div>
-																							<img v-else class="img-responsive" style="width:100%" v-bind:src="currentVideo.thumb_url">
+                                                                                                                           <img v-else class="img-responsive" style="width:100%" v-bind:src="getDisplayThumb(currentVideo)" v-on:error="handleThumbError(currentVideo, $event)" v-on:load="handleThumbLoad(currentVideo)">
 																						</div>
 																						<div v-if="previewError" class="alert alert-warning text-center margin-top-10 margin-bottom-0" role="alert">
 																							<p><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> {{previewError}}</p>
@@ -469,12 +469,12 @@ function lvjm_import_videos_page() {
 																					<transition name="fade" mode="out-in">
 																						<div v-if="expandedThumb == ''" key="allThumbs">
 																							<div v-for="thumb in currentVideo.thumbs_urls" v-bind:key="thumb" class="col-xs-6 col-md-3 item">
-																								<img class="img-responsive thumbnail" v-bind:src="thumb" v-on:click="showThumb(thumb)">
+                                                                                                                           <img class="img-responsive thumbnail" v-bind:src="thumb" v-on:error="handleThumbError(currentVideo, $event)" v-on:click="showThumb(thumb)">
 																							</div>
 																						</div>
 																						<div v-if="expandedThumb != ''" class="col-xs-10 col-xs-offset-1 item" key="expandedThumb">
 																							<i aria-hidden="true" class="fa fa-times close-expanded-thumb" v-on:click="hideThumb"></i>
-																							<img class="img-responsive thumbnail" style="width:100%;" v-bind:src="expandedThumb" v-on:click="hideThumb">
+                                                                                                                           <img class="img-responsive thumbnail" style="width:100%;" v-bind:src="expandedThumb" v-on:error="handleThumbError(currentVideo, $event)" v-on:click="hideThumb">
 																						</div>
 																					</transition>
 																					<div class="col-xs-12">
@@ -493,17 +493,18 @@ function lvjm_import_videos_page() {
 																						</p>
 																					</div>
 																				</div>
-																				<div v-else class="row">
-																					<div class="col-xs-12 text-center padding-top-15 padding-bottom-15">
-																						<?php esc_html_e( 'No thumbnails available.', 'lvjm_lang' ); ?>
-																					</div>
-																				</div>
+                                                                                                                            <div v-else class="row">
+                                                                                                                                    <div class="col-xs-12 text-center padding-top-15 padding-bottom-15">
+                                                                                                                                            <p><?php esc_html_e( 'No thumbnails available.', 'lvjm_lang' ); ?></p>
+                                                                                                                                            <p v-if="data && data.debugImporter" class="text-muted"><small>{{getNoThumbsDebug(currentVideo)}}</small></p>
+                                                                                                                                    </div>
+                                                                                                                            </div>
 																			</div>
 																			<div role="tabpanel" class="tab-pane" id="current-video-trailer">
 																				<div v-if="currentVideo.trailer_url != ''" class="row">
 																				<div class="col-xs-12">
 																					<div class="text-center">
-																						<video controls class="embed-responsive-item" v-bind:poster="currentVideo.thumb_url">
+                                                                                                                           <video controls class="embed-responsive-item" v-bind:poster="getDisplayThumb(currentVideo)">
 																							<source v-bind:src="currentVideo.trailer_url">
 																						</video>
 																					</div>

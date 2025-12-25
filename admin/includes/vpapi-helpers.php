@@ -205,13 +205,36 @@ if ( ! function_exists( 'lvjm_https_url' ) ) {
 	 * @param string $url The URL.
 	 * @return string
 	 */
-	function lvjm_https_url( $url ) {
-		$url = trim( (string) $url );
-		if ( '' === $url ) {
-			return '';
-		}
-		return set_url_scheme( $url, 'https' );
-	}
+        function lvjm_https_url( $url ) {
+                $url = trim( (string) $url );
+
+                if ( '' === $url ) {
+                        return '';
+                }
+
+                // Ignore data/blob URLs.
+                $lower = strtolower( $url );
+                if ( 0 === strpos( $lower, 'data:' ) || 0 === strpos( $lower, 'blob:' ) ) {
+                        return $url;
+                }
+
+                if ( 0 === strpos( $url, '//' ) ) {
+                        $url = 'https:' . $url;
+                }
+
+                // If the admin is HTTPS, always upgrade to HTTPS to avoid mixed content.
+                if ( is_ssl() ) {
+                        return set_url_scheme( $url, 'https' );
+                }
+
+                // For non-http(s) schemes, return untouched.
+                $scheme = wp_parse_url( $url, PHP_URL_SCHEME );
+                if ( $scheme && ! in_array( strtolower( $scheme ), array( 'http', 'https' ), true ) ) {
+                        return $url;
+                }
+
+                return set_url_scheme( $url, 'https' );
+        }
 }
 
 if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
