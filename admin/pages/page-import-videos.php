@@ -265,11 +265,11 @@ function lvjm_import_videos_page() {
 													<template v-if="displayType == 'cards'">
 														<div v-for="(video, index) in videos" class="col-xs-12 col-sm-6 col-md-3 col-lg-2 item-cards" v-bind:key="video.id">
 															<div class="video" v-bind:class="{'grabbed': video.grabbed, 'checked': video.checked}" >
-																<div class="video-img" v-on:click.prevent="setCurrentVideo(video, index)">
+																<div class="video-img" v-on:mouseenter="ensureVideoThumbnails(video, 'card-hover')" v-on:click.prevent="setCurrentVideo(video, index)">
 																	<img class="img-responsive" src="<?php echo esc_html( LVJM_URL ); ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
 																	<div class="video-data" data-toggle="modal" data-target="#video-preview-modal">
 																		<span class="video-duration"><i class="fa fa-clock-o" aria-hidden="true"></i> <small>{{video.duration | timeFormat}}</small></span>
-																		<span v-if="video.thumbs_urls != ''" class="video-has-thumbs"> <small><i class="fa fa-th-large" aria-hidden="true"></i> {{video.thumbs_urls.length}}</small></span>
+																		<span v-if="hasThumbs(video)" class="video-has-thumbs"> <small><i class="fa fa-th-large" aria-hidden="true"></i> {{video.thumbs_urls.length}}</small></span>
 																		<span v-if="video.trailer_url != ''" class="video-has-trailer"> <small><i class="fa fa-file-video-o" aria-hidden="true"></i> 1</small></span>
 																	</div>
 																</div>
@@ -321,7 +321,7 @@ function lvjm_import_videos_page() {
 																			<td>
 																				<div class="margin-bottom-5"><input type="text" name="" v-model="video.title" v-bind:disabled="video.grabbed" class="form-control" placeholder="<?php esc_html_e( 'Title', 'lvjm_lang' ); ?>..."></div>
 																				<template v-if="video.duration"><i class="fa fa-clock-o" aria-hidden="true"></i> <small>{{video.duration | timeFormat}}</small></template>
-																				<template v-if="video.thumbs_urls != ''"> | <i class="fa fa-th-large" aria-hidden="true"></i> <small>{{video.thumbs_urls.length}}</small></template>
+																				<template v-if="hasThumbs(video)"> | <i class="fa fa-th-large" aria-hidden="true"></i> <small>{{video.thumbs_urls.length}}</small></template>
 																				<template v-if="video.trailer_url != ''"> | <i class="fa fa-file-video-o" aria-hidden="true"></i> <small>1</small></template>
 																			</td>
 																			<td>
@@ -409,7 +409,7 @@ function lvjm_import_videos_page() {
 																	<div class="col-xs-12">
 																		<ul class="nav nav-tabs padding-top-15" role="tablist">
 																			<li class="active"><a href="#current-video-data" @click="setVideoTab('data')" id="tab-video-data" role="tab" data-toggle="tab"><i class="fa fa-youtube-play" aria-hidden="true"></i> <?php esc_html_e( 'Video data', 'lvjm_lang' ); ?></a></li>
-																			<li v-if="currentVideo.thumbs_urls != ''"><a href="#current-video-thumbs" @click="setVideoTab('thumbs')" id="tab-video-thumbs" role="tab" data-toggle="tab"><i class="fa fa-th-large" aria-hidden="true"></i></span> <?php esc_html_e( 'Thumbnails', 'lvjm_lang' ); ?></a></li>
+																			<li v-if="hasThumbs(currentVideo)"><a href="#current-video-thumbs" @click="setVideoTab('thumbs')" id="tab-video-thumbs" role="tab" data-toggle="tab"><i class="fa fa-th-large" aria-hidden="true"></i></span> <?php esc_html_e( 'Thumbnails', 'lvjm_lang' ); ?></a></li>
 																			<li v-if="currentVideo.trailer_url != ''"><a href="#current-video-trailer" @click="setVideoTab('trailer')" id="tab-video-trailer" role="tab" data-toggle="tab"><i class="fa fa-file-video-o" aria-hidden="true"></i></span> <?php esc_html_e( 'Trailer', 'lvjm_lang' ); ?></a></li>
 																		</ul>
 																		<div class="tab-content">
@@ -459,7 +459,7 @@ function lvjm_import_videos_page() {
 																				</div>
 																			</div>
 																			<div role="tabpanel" class="tab-pane" id="current-video-thumbs">
-																				<div v-if="currentVideo.thumbs_urls != ''" class="row">
+																			<div v-if="hasThumbs(currentVideo)" class="row">
 																					<transition name="fade" mode="out-in">
 																						<div v-if="expandedThumb == ''" key="allThumbs"> 
 																							<div v-for="thumb in currentVideo.thumbs_urls" v-bind:key="thumb" class="col-xs-6 col-md-3 item">
