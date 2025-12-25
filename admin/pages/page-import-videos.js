@@ -472,20 +472,16 @@ function LVJM_pageImportVideos() {
                             if (lodash.isEmpty(response.body.errors)) {
                                 this.searchedData = response.body.searched_data;
                                 lodash.each(response.body.videos, function (video) {
-                                    var rawThumbs = video.thumbs_urls;
-                                    if ((!rawThumbs || (Array.isArray(rawThumbs) && rawThumbs.length === 0) || (typeof rawThumbs === 'string' && !rawThumbs.length)) && typeof video.previewImages !== 'undefined') {
-                                        if (Array.isArray(video.previewImages)) {
-                                            rawThumbs = video.previewImages.map(function (preview) {
-                                                if (preview && typeof preview === 'object') {
-                                                    return preview.url || preview.src || '';
-                                                }
-                                                return preview;
-                                            });
-                                        } else {
-                                            rawThumbs = video.previewImages;
-                                        }
+                                    var rawThumbs = typeof video.previewImages !== 'undefined' ? video.previewImages : video.thumbs_urls;
+                                    if (Array.isArray(rawThumbs)) {
+                                        rawThumbs = rawThumbs.map(function (preview) {
+                                            if (preview && typeof preview === 'object') {
+                                                return preview.url || preview.src || '';
+                                            }
+                                            return preview;
+                                        });
                                     }
-                                    if ((!video.thumb_url || !video.thumb_url.length) && video.thumbImage) {
+                                    if (video.thumbImage) {
                                         video.thumb_url = video.thumbImage;
                                     }
                                     var normalizedThumbs = [];
@@ -720,6 +716,7 @@ function LVJM_pageImportVideos() {
                         return url;
                     }
                     var trimmed = url.trim();
+                    trimmed = trimmed.replace(/\\\//g, '/');
                     if (trimmed.indexOf('//') === 0) {
                         trimmed = 'https:' + trimmed;
                     }
@@ -803,7 +800,14 @@ function LVJM_pageImportVideos() {
                     if (!Array.isArray(video.thumbs_urls)) {
                         this.$set(video, 'thumbs_urls', []);
                     }
-                    if (video.thumbs_loading || video.thumbs_loaded || this.hasThumbs(video)) {
+                    if (this.hasThumbs(video)) {
+                        this.$set(video, 'thumbs_loaded', true);
+                        if (!video.thumbs_status) {
+                            this.$set(video, 'thumbs_status', 'ok');
+                        }
+                        return;
+                    }
+                    if (video.thumbs_loading) {
                         return;
                     }
                     this.$set(video, 'thumbs_loading', true);
