@@ -8,7 +8,6 @@ class ComposerStaticInitecf4a964e5b2202bafada94d8178dd5b
 {
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
-        'LVJM' => __DIR__ . '/../..' . '/classes/class-lvjm.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

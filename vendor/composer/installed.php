@@ -3,7 +3,7 @@
         'name' => 'wp-script/wps-livejasmin',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'c6d5dc4a19377257621f8022a7e2599185d8f024',
+        'reference' => '0644b99c5be81f331298fccebc4a82cf2cbbf07a',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'wp-script/wps-livejasmin' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'c6d5dc4a19377257621f8022a7e2599185d8f024',
+            'reference' => '0644b99c5be81f331298fccebc4a82cf2cbbf07a',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

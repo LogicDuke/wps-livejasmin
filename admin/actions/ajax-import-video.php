@@ -6,7 +6,7 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 /**
  * Import videos in Ajax or PHP call.
@@ -98,6 +98,9 @@ function lvjm_import_video( $params = '' ) {
 		wp_set_object_terms( $post_id, explode( ',', str_replace( ';', ',', (string) $params['video_infos']['tags'] ) ), LVJM()->call_by_ref( $custom_tags ), false );
 		// add actors.
 		$custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
+		if ( '' === $custom_actors ) { $custom_actors = 'models'; }
+		if ( 'actors' === $custom_actors ) { $custom_actors = 'models'; }
+
 		if ( '' === $custom_actors ) {
 			$custom_actors = 'actors';
 		}
@@ -123,7 +126,7 @@ function lvjm_import_video( $params = '' ) {
 			}
 
 			// magic sideload image returns an HTML image, not an ID.
-			$media = LVJM()->media_sideload_image( $default_thumb, $post_id, $params['partner_id'] );
+			$media = LVJM()->media_sideload_image( $default_thumb, $post_id, null, $params['partner_id'] );
 
 			// therefore we must find it so we can set it as featured ID.
 			if ( ! empty( $media ) && ! is_wp_error( $media ) ) {

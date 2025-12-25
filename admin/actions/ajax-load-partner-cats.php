@@ -6,7 +6,7 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 /**
  * Load partner cats in Ajax.
@@ -52,7 +52,14 @@ function lvjm_load_partner_cats() {
 		}
 		++$i;
 	}
-	wp_send_json( $output );
+	// Inject custom category
+if (is_array($output) && isset($output[0]['id'])) {
+    array_unshift($output, array(
+        'id' => 'all_straight',
+        'name' => 'All Straight Categories'
+    ));
+}
+wp_send_json( $output );
 	wp_die();
 }
 add_action( 'wp_ajax_lvjm_load_partner_cats', 'lvjm_load_partner_cats' );

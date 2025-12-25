@@ -6,7 +6,7 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 add_filter( 'lvjm-options', 'lvjm_options_page' );
 
@@ -68,8 +68,8 @@ function lvjm_options() {
 	unset( $all_taxonomies['nav_menu'] );
 	unset( $all_taxonomies['link_category'] );
 	unset( $all_taxonomies['post_format'] );
-	if ( ! isset( $all_taxonomies['actors'] ) ) {
-		$all_taxonomies['actors'] = 'actors';
+	if ( ! isset( $all_taxonomies['models'] ) ) {
+		$all_taxonomies['models'] = 'models';
 	}
 	asort( $all_taxonomies, SORT_STRING );
 
@@ -471,11 +471,11 @@ function lvjm_options() {
 	$xbox->add_field(
 		array(
 			'id'      => 'custom-video-actors',
-			'name'    => 'Video custom actors',
+			'name'    => 'Video custom models',
 			'type'    => 'select',
-			'default' => 'actors',
+			'default' => 'models',
 			'items'   => $all_taxonomies,
-			'desc'    => 'Set the video actors taxonomy used by your theme',
+			'desc'    => 'Set the video models taxonomy used by your theme',
 			'grid'    => '3-of-6',
 		)
 	);

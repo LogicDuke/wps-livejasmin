@@ -1,30 +1,17 @@
 == WPS LiveJasmin ==
 
 == Translations ==
-* English (100%): 109/109 lines translated
-* French (100%): 109/109 lines translated
-* German (100%): 109/109 lines translated
-* Hindi (100%): 109/109 lines translated
-* Italian (100%): 109/109 lines translated
-* Portuguese (100%): 109/109 lines translated
-* Russian (100%): 109/109 lines translated
-* Spanish (100%): 109/109 lines translated
+* Chinese (100%): 101/101 lines translated
+* English (100%): 101/101 lines translated
+* French (100%): 101/101 lines translated
+* German (100%): 101/101 lines translated
+* Hindi (100%): 101/101 lines translated
+* Italian (100%): 101/101 lines translated
+* Portuguese (100%): 101/101 lines translated
+* Russian (100%): 101/101 lines translated
+* Spanish (100%): 101/101 lines translated
 
 == Changelog ==
-= 1.5.0 = 2025-09-25
-* Fixed: Add error handling for plugin rendering to prevent crashes in class-tgm-plugin-activation
-* Fixed: Force sslverify option from API request arguments
-* Fixed: Fix issues in translation files that could prevent the plugin to work properly in some languages
-
-= 1.4.0 = 2025-09-16
-* Updated: Refactor plugin loading to prevent PHP errors on plugin activation and deactivation
-* Fixed: Fix issue that could prevent the WordPress categories to be loaded properly in the import page
-* Fixed: Fix minor issues
-
-= 1.3.3 = 2025-08-25
-* Fixed: Fix php compatibility issues
-* Fixed: Fix video embed responsiveness issue when WPS Mass Embedder is activated
-
 = 1.3.2 = 2025-07-28
 * Fixed: Fix translation files issues that could prevent the plugin from installing and work properly in de, it, ru and zh languages
 

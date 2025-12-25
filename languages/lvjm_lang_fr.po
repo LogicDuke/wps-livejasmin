@@ -6,7 +6,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-09-25 15:24+0000\n"
+"POT-Creation-Date: 2025-07-28 08:19+0000\n"
 "X-Poedit-Basepath: ..\n"
 "X-Poedit-KeywordsList: __;_e;_ex:1,2c;_n:1,2;_n_noop:1,2;_nx:1,2,4c;_nx_noop:1,2,3c;_x:1,2c;esc_attr__;esc_attr_e;esc_attr_x:1,2c;esc_html__;esc_html_e;esc_html_x:1,2c\n"
 "X-Poedit-SearchPath-0: .\n"
@@ -19,92 +19,49 @@ msgstr ""
 "Language: \n"
 "Language-Team: \n"
 
-#: ../classes/class-lvjm.php:44, ../classes/class-lvjm.php:53
+#: ../wps-livejasmin.php:52, ../wps-livejasmin.php:61
 msgid "Do not clone or wake up this class"
 msgstr "Ne pas cloner ou réveiller cette classe"
 
-#: ../classes/class-lvjm.php:558
+#: ../wps-livejasmin.php:571
 msgid "An error occured during the suppression:"
 msgstr "Une erreur s'est produite pendant la suppression :"
 
-#: ../classes/class-lvjm.php:559, ../admin/pages/page-import-videos.php:216
+#: ../wps-livejasmin.php:572, ../admin/pages/page-import-videos.php:216
 msgid "Select a WordPress category"
 msgstr "Sélectionner un mot Catégorie de presse"
 
-#: ../classes/class-lvjm.php:560
+#: ../wps-livejasmin.php:573
 msgid "Select a category from"
 msgstr "Sélectionnez une catégorie"
 
-#: ../classes/class-lvjm.php:561
+#: ../wps-livejasmin.php:574
 msgid "or a keyword (if it is available)"
 msgstr "ou un mot clé (s'il est disponible)"
 
-#: ../classes/class-lvjm.php:562
+#: ../wps-livejasmin.php:575
 msgid "AND"
 msgstr "PAYS"
 
-#: ../classes/class-lvjm.php:563
+#: ../wps-livejasmin.php:576
 msgid "Check at least 1 video"
 msgstr "Vérifiez au moins 1 vidéo"
 
-#: ../classes/class-lvjm.php:564
+#: ../wps-livejasmin.php:577
 msgid "to enable this button"
 msgstr "pour activer ce bouton"
 
-#: ../classes/class-lvjm.php:565, ../admin/pages/page-import-videos.php:209, ../admin/pages/page-import-videos.php:229
+#: ../wps-livejasmin.php:578, ../admin/pages/page-import-videos.php:209, ../admin/pages/page-import-videos.php:229
 msgid "Import"
 msgstr "Importation"
 
-#: ../classes/class-lvjm.php:566
+#: ../wps-livejasmin.php:579
 msgid "videos and save this search as a Feed. All your Feeds are displayed at the bottom of this page."
 msgstr "vidéos et enregistrer cette recherche comme un flux. Tous vos flux sont affichés au bas de cette page."
 
-#: ../public/actions.php:127, ../public/actions.php:130
+#: ../public/actions.php:128, ../public/actions.php:131
 msgid "This video is not available in your country"
 msgstr "Cette vidéo n'est pas disponible dans votre pays"
-
-#: ../tgmpa/config.php:41
-msgid "Install Required Plugins"
-msgstr "Installer les plugins requis"
-
-#: ../tgmpa/config.php:42
-msgid "Install Plugins"
-msgstr "Installer les plugins"
-
-#. translators: %s: plugin name.
-#: ../tgmpa/config.php:44
-msgid "Installing Plugin: %s"
-msgstr "Installation du plugin : %s"
-
-#. translators: %s: plugin name.
-#: ../tgmpa/config.php:46
-msgid "Updating Plugin: %s"
-msgstr "Mise à jour du plugin : %s"
-
-#: ../tgmpa/config.php:47
-msgid "Something went wrong with the plugin API."
-msgstr "Quelque chose a mal tourné avec l'API du plugin."
-
-#. translators: 1: plugin name(s).
-#: ../tgmpa/config.php:49
-msgid "WP-Script products requires the following plugin: %1$s."
-msgid_plural "WP-Script products requires the following plugins: %1$s."
-msgstr[0] "Les produits WP-Script nécessitent le plugin suivant : %1$s."
-msgstr[1] "Les produits WP-Script nécessitent les plugins suivants : %1$s."
-
-#. translators: 1: plugin name(s).
-#: ../tgmpa/config.php:55
-msgid "WP-Script products recommends the following plugin: %1$s."
-msgid_plural "WP-Script products recommends the following plugins: %1$s."
-msgstr[0] "Les produits WP-Script recommandent le plugin suivant : %1$s."
-msgstr[1] "Les produits WP-Script recommandent les plugins suivants : %1$s."
-
-#. translators: 1: plugin name(s).
-#: ../tgmpa/config.php:61
-msgid "%1$s needs to be updated to its latest version to ensure maximum compatibility with WP-Script products"
-msgid_plural "%1$s need to be updated to their latest version to ensure maximum compatibility with WP-Script products"
-msgstr[0] "%1$s doit être mis à jour à sa dernière version pour garantir une compatibilité maximale avec les produits WP-Script"
-msgstr[1] "%1$s doivent être mis à jour à leur dernière version pour assurer une compatibilité maximale avec les produits WP-Script"
 
 #: ../admin/pages/page-import-videos.php:28, ../admin/pages/page-options-x.php:30
 msgid "Import videos"

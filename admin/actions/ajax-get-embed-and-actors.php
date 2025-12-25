@@ -6,15 +6,12 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 /**
  * Get embed player and actors ids in Ajax or PHP call.
  *
- * @throws Exception If AwEmpire Api is not working.
- *
  * @param mixed $params       Array of parameters if this function is called in PHP.
- *
  * @return void|array $output New post ID if success, -1 if not. Returned only if this function is called in PHP.
  */
 function lvjm_get_embed_and_actors( $params = '' ) {
@@ -42,7 +39,8 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	$client_ip             = '90.90.90.90';
 	$api_url               = 'https://pt.ptawe.com/api/video-promotion/v1/details/' . $params['video_id'] . '?clientIp=' . $client_ip . '&primaryColor=' . $primary_color . '&labelColor=' . $label_color . '&psid=' . $psid . '&accessKey=' . $access_key;
 	$args                  = array(
-		'timeout' => 300,
+		'timeout'   => 300,
+		'sslverify' => false,
 	);
 
 	$response = wp_remote_get( $api_url, $args );
@@ -52,7 +50,10 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	}
 	$container_id    = 'lvjm-player-' . $params['video_id'];
 	$response_body   = json_decode( wp_remote_retrieve_body( $response ), true );
-	$embed_container = '<div class="player" data-awe-container-id="' . $container_id . '" style="width:640px;height:480px"></div>';
+    // Use a responsive container for the player instead of fixed width/height.
+    // Setting aspect-ratio to 16/9 and 100% width makes the embed responsive while
+    // preserving the maximum width of 640px for backward compatibility.
+    $embed_container = '<div class="player" data-awe-container-id="' . $container_id . '" style="aspect-ratio:16/9;width:100%;"></div>';
 
 	if ( ! isset( $response_body['data'], $response_body['data']['playerEmbedScript'] ) ) {
 		if ( $ajax_call ) {
@@ -63,6 +64,17 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	}
 
 	$embed_script = str_replace( '{CONTAINER}', $container_id, $response_body['data']['playerEmbedScript'] );
+    // Append whitelabel redirect parameters directly into the embed script URL.  Without this
+    // the player defaults to `siteId=jsm` which sends users to the main LiveJasmin domain.
+    $whitelabel_id = ! empty( $saved_partner_options['whitelabel_id'] ) ? $saved_partner_options['whitelabel_id'] : '261146';
+    $redirect_query = http_build_query( array( 'siteId' => 'wl3', 'cobrandId' => (string) $whitelabel_id ) );
+    // Replace the src attribute by appending the query string.  We need to account for
+    // existing query parameters so we choose '&' or '?' as the delimiter accordingly.
+    $embed_script = preg_replace_callback( '/<script\s+[^>]*src="([^"]+)"/', function ( $matches ) use ( $redirect_query ) {
+        $src       = $matches[1];
+        $delimiter = ( false === strpos( $src, '?' ) ) ? '?' : '&';
+        return '<script src="' . $src . $delimiter . $redirect_query . '"';
+    }, $embed_script );
 	$output       = array(
 		'performer_name' => lvjm_get_performer_name_by_id( $response_body['data']['performerId'] ),
 		'embed'          => $embed_container . $embed_script,

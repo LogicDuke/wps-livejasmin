@@ -1,4 +1,6 @@
 <?php
+
+error_log('[WPS-LiveJasmin] Import videos page accessed');
 /**
  * Admin Import Page plugin file.
  *
@@ -6,7 +8,7 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 /**
  * Callback for the plugin Import page.
@@ -111,7 +113,7 @@ function lvjm_import_videos_page() {
 																									<li><strong><?php esc_html_e( 'Multiple Thumbnails', 'lvjm_lang' ); ?></strong>: {{selectedPartnerObject.filters.multithumbs === true ? '<?php esc_html_e( 'Yes', 'lvjm_lang' ); ?>':'<?php esc_html_e( 'No', 'lvjm_lang' ); ?>'}}</li>
 																									<li><strong><?php esc_html_e( 'Trailer', 'lvjm_lang' ); ?></strong>: {{selectedPartnerObject.filters.trailer === true ? '<?php esc_html_e( 'Yes', 'lvjm_lang' ); ?>':'<?php esc_html_e( 'No', 'lvjm_lang' ); ?>'}}</li>
 																									<li><strong><?php esc_html_e( 'Orientation(s)', 'lvjm_lang' ); ?></strong>: {{selectedPartnerObject.filters.orientation.join(', ')}}</li>
-																									<li><strong><?php esc_html_e( 'Actors List', 'lvjm_lang' ); ?></strong>: {{selectedPartnerObject.filters.orientation.actors === true ? '<?php esc_html_e( 'Yes', 'lvjm_lang' ); ?>':'<?php esc_html_e( 'No', 'lvjm_lang' ); ?>'}}</li>
+																									<li><strong><?php esc_html_e( 'Models List', 'lvjm_lang' ); ?></strong>: {{selectedPartnerObject.filters.orientation.actors === true ? '<?php esc_html_e( 'Yes', 'lvjm_lang' ); ?>':'<?php esc_html_e( 'No', 'lvjm_lang' ); ?>'}}</li>
 																								</ul>
 																								<h4><?php esc_html_e( 'Payment Details', 'lvjm_lang' ); ?></h4>
 																								<ul>
@@ -145,6 +147,11 @@ function lvjm_import_videos_page() {
 															<span id="kw-search" v-show="selectedPartnerObject.filters.search_by == 'keyword'">
 															<strong>- <?php esc_html_e( 'OR', 'lvjm_lang' ); ?> -</strong> <?php esc_html_e( 'Enter some keywords', 'lvjm_lang' ); ?> <input v-model="selectedKW" v-bind:disabled="searchingVideos" v-on:keyup.enter.prevent="searchVideos('create')" id="kw_s" type="text" placeholder="<?php esc_html_e( 'eg. ebony lesbian', 'lvjm_lang' ); ?>" name="kw_s" class="form-control" style="width:250px;">
 															</span>
+											<span id="performer-search" style="margin-left:8px;">
+												<label for="performer_s" class="sr-only"><?php esc_html_e( 'Performer', 'lvjm_lang' ); ?></label>
+												<input type="text" v-model="selectedPerformer" placeholder="<?php esc_attr_e( 'Performer (optional)', 'lvjm_lang' ); ?>" id="performer_s" name="performer_s" class="form-control" style="width:220px;">
+											</span>
+
 														</div>
 													</div>
 												</div>
@@ -164,7 +171,7 @@ function lvjm_import_videos_page() {
 									<!-- / search videos block -->
 									<!-- results success block -->
 									<div class="row">
-										<div class="col-xs-12" v-show="videosCounter <= 0 && videosHasBeenSearched">
+										<div class="col-xs-12" v-show="videosCounter <= 0 && videosHasBeenSearched">                                        
 											<div v-if="videosSearchedErrors.code" class="alert alert-danger margin-top-10 text-center alert-dismissible" role="alert">
 												<button type="button" class="close" v-on:click.prevent="resetSearch" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
 												<p><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> <strong>{{videosSearchedErrors.code}}</strong><br>{{videosSearchedErrors.message}}<br>-<br>{{videosSearchedErrors.solution}}</p>
@@ -189,8 +196,8 @@ function lvjm_import_videos_page() {
 											<div v-show="videosCounter > 0" id="videos-found" class="col-xs-12 margin-top-10">
 												<div id="sticky-space" class="col-xs-12"></div>
 												<div id="videos-found-header" class="col-xs-12">
-													<h3><i class="fa" v-bind:class="[displayType == 'cards' ? 'fa-th' : 'fa-list-ul']"></i>
-														<?php esc_html_e( 'Search results', 'lvjm_lang' ); ?>
+													<h3><i class="fa" v-bind:class="[displayType == 'cards' ? 'fa-th' : 'fa-list-ul']"></i> 
+														<?php esc_html_e( 'Search results', 'lvjm_lang' ); ?> 
 														<template v-if="searchFromFeed">
 															: {{videosCounter}} <?php esc_html_e( 'new videos found with', 'lvjm_lang' ); ?> <img class="border-radius-4" v-bind:src="'https://res.cloudinary.com/themabiz/image/upload/wpscript/sources/' + selectedPartnerObject.id + '.jpg'" v-bind:alt="selectedPartnerObject.name"> / {{selectedKW != '' && selectedKW != undefined ? 'Keyword "' + selectedKW + '"':'Category "' + selectedPartnerCatName + '"'}}
 														</template>
@@ -295,7 +302,7 @@ function lvjm_import_videos_page() {
 																		<th width="100"><?php esc_html_e( 'Thumb', 'lvjm_lang' ); ?></th>
 																		<th><?php esc_html_e( 'Title', 'lvjm_lang' ); ?></th>
 																		<th><?php esc_html_e( 'Description', 'lvjm_lang' ); ?></th>
-																		<th><?php esc_html_e( 'Tags and Actors', 'lvjm_lang' ); ?></th>
+																		<th><?php esc_html_e( 'Tags and Models', 'lvjm_lang' ); ?></th>
 																		<th width="100" class="text-center">Actions</th>
 																	</tr>
 																	<tr v-for="(video, index) in videos" v-bind:key="video.id" class="item-list" v-bind:class="{'success':video.checked, 'grabbed':video.grabbed}">
@@ -323,7 +330,7 @@ function lvjm_import_videos_page() {
 																			<td>
 																				<div class="input-group margin-bottom-8">
 																					<span class="input-group-addon" id="actors"><i class="fa fa-users" aria-hidden="true"></i> <small><?php esc_html_e( 'Actors', 'lvjm_lang' ); ?></small></span>
-																					<input type="text" name="actors" class="form-control" v-model="video.actors" v-bind:disabled="video.grabbed" placeholder="insert actors separated by a comma" aria-describedby="actors">
+																					<input type="text" name="actors" class="form-control" v-model="video.actors" v-bind:disabled="video.grabbed" placeholder="insert models separated by a comma" aria-describedby="actors">
 																				</div>
 																				<div class="input-group">
 																					<span class="input-group-addon" id="tags"><i class="fa fa-tags" aria-hidden="true"></i> <small><?php esc_html_e( 'Tags', 'lvjm_lang' ); ?></small></span>
@@ -423,9 +430,9 @@ function lvjm_import_videos_page() {
 																				<div class="row padding-top-15">
 																					<div class="col-xs-12 form-horizontal">
 																						<div class="form-group">
-																							<label for="actors" class="col-sm-2 control-label">Actors:</label>
+																							<label for="models" class="col-sm-2 control-label">Models:</label>
 																							<div class="col-sm-10">
-																								<input type="text" name="actors" class="form-control" v-model="currentVideo.actors" v-bind:disabled="currentVideo.grabbed" placeholder="insert actors separated by a comma">
+																								<input type="text" name="actors" class="form-control" v-model="currentVideo.actors" v-bind:disabled="currentVideo.grabbed" placeholder="insert models separated by a comma">
 																							</div>
 																						</div>
 																						<div class="form-group">
@@ -445,7 +452,7 @@ function lvjm_import_videos_page() {
 																			<div role="tabpanel" class="tab-pane" id="current-video-thumbs">
 																				<div v-if="currentVideo.thumbs_urls != ''" class="row">
 																					<transition name="fade" mode="out-in">
-																						<div v-if="expandedThumb == ''" key="allThumbs">
+																						<div v-if="expandedThumb == ''" key="allThumbs"> 
 																							<div v-for="thumb in currentVideo.thumbs_urls" v-bind:key="thumb" class="col-xs-6 col-md-3 item">
 																								<img class="img-responsive thumbnail" v-bind:src="thumb" v-on:click="showThumb(thumb)">
 																							</div>

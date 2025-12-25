@@ -6,7 +6,7 @@
  */
 
 // Exit if accessed directly.
-defined( 'ABSPATH' ) || exit;
+defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 add_action( 'init', 'lvjm_load_public_filters' );
 
@@ -15,7 +15,7 @@ add_action( 'init', 'lvjm_load_public_filters' );
  */
 function lvjm_load_public_filters() {
 	add_filter( 'the_content', 'lvjm_insert_video' );
-	add_filter( 'get_post_metadata', 'lvjm_set_embed_redirect_and_responsiveness', 12, 4 );
+	add_filter( 'get_post_metadata', 'lvjm_set_embed_redirect_and_responsiveness', 10, 4 );
 }
 
 /**
@@ -67,79 +67,101 @@ function lvjm_insert_video( $content ) {
  * @return mixed The maybe modified meta value.
  */
 function lvjm_set_embed_redirect_and_responsiveness( $meta_value, $object_id, $meta_key, $single ) {
-	if ( lvjm_get_embed_key() !== $meta_key ) {
-		return $meta_value;
-	}
+    // Only handle our embed key
+    if ( lvjm_get_embed_key() !== $meta_key ) {
+        return $meta_value;
+    }
 
-	$meta_cache = wp_cache_get( $object_id, 'post_meta' );
-	if ( ! $meta_cache ) {
-		$meta_cache = update_meta_cache( 'post', array( $object_id ) );
-		$meta_cache = $meta_cache[ $object_id ];
-	}
-	if ( isset( $meta_cache[ $meta_key ] ) ) {
-		if ( $single ) {
-			$meta_value = maybe_unserialize( $meta_cache[ $meta_key ][0] );
-		} else {
-			$meta_value = array_map( 'maybe_unserialize', $meta_cache[ $meta_key ] );
-		}
-	}
+    // Prime the meta cache to avoid additional queries
+    $meta_cache = wp_cache_get( $object_id, 'post_meta' );
+    if ( ! $meta_cache ) {
+        $meta_cache = update_meta_cache( 'post', array( $object_id ) );
+        $meta_cache = $meta_cache[ $object_id ];
+    }
+    if ( isset( $meta_cache[ $meta_key ] ) ) {
+        if ( $single ) {
+            $meta_value = maybe_unserialize( $meta_cache[ $meta_key ][0] );
+        } else {
+            $meta_value = array_map( 'maybe_unserialize', $meta_cache[ $meta_key ] );
+        }
+    }
 
-	if ( false === $single ) {
-		return $meta_value;
-	}
+    // Build the redirect parameters (site or wl3) once
+    $redirect_param = array( 'siteId' => 'jsm' );
+    $saved_options  = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+    // If a whitelabel ID is saved, use it.  Otherwise fall back to the built‑in ID.
+    if ( isset( $saved_options['whitelabel_id'] ) && '' !== (string) $saved_options['whitelabel_id'] ) {
+        $redirect_param = array(
+            'siteId'    => 'wl3',
+            'cobrandId' => (string) $saved_options['whitelabel_id'],
+        );
+    } else {
+        // Fallback: always send traffic to the configured cobrand
+        $redirect_param = array(
+            'siteId'    => 'wl3',
+            'cobrandId' => '261146',
+        );
+    }
 
-	if ( strpos( (string) $meta_value, 'lvjm-player' ) === false ) {
-		return $meta_value;
-	}
+    // Helper closure to update embed HTML
+    $apply_embed_modifications = function ( $embed_html ) use ( $redirect_param, $meta_cache, $object_id ) {
+        // Skip if there is no lvjm-player marker
+        if ( strpos( (string) $embed_html, 'lvjm-player' ) === false ) {
+            return $embed_html;
+        }
+        // Parse the HTML
+        $meta_value_html_obj = str_get_html( $embed_html );
+        $script_tags         = $meta_value_html_obj->find( 'script' );
+        if ( 0 === count( $script_tags ) ) {
+            // When there is no script tag, attempt to refresh the embed via API
+            try {
+                $video_id  = isset( $meta_cache['video_id'][0] ) ? $meta_cache['video_id'][0] : '';
+                $more_data = lvjm_get_embed_and_actors( array( 'video_id' => $video_id ) );
+                // Update embed player
+                $custom_embed_player = xbox_get_field_value( 'lvjm-options', 'custom-embed-player' );
+                if ( '' === $custom_embed_player ) {
+                    $custom_embed_player = 'embed';
+                }
+                update_post_meta( $object_id, $custom_embed_player, $more_data['embed'] );
+                // Assign actor
+                $custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
+		if ( '' === $custom_actors ) { $custom_actors = 'models'; }
+		if ( 'actors' === $custom_actors ) { $custom_actors = 'models'; }
 
-	// Else, Build site redirect param.
-	$redirect_param = array( 'site' => 'jasmin' );
-	$saved_options  = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+                if ( '' === $custom_actors ) {
+                    $custom_actors = 'actors';
+                }
+                if ( ! empty( $more_data['performer_name'] ) ) {
+                    wp_add_object_terms( $object_id, $more_data['performer_name'], $custom_actors );
+                }
+                return __( 'This video is not available in your country', 'lvjm_lang' );
+            } catch ( \Exception $exception ) {
+                unset( $exception );
+                return __( 'This video is not available in your country', 'lvjm_lang' );
+            }
+        }
+        // Append redirect parameters to the first script tag
+        $script_tag       = $script_tags[0];
+        $script_tag->src .= '&' . http_build_query( $redirect_param );
+        // Ensure player wrapper is responsive
+        $div_tags = $meta_value_html_obj->find( 'div.player' );
+        if ( 0 !== count( $div_tags ) ) {
+            $div_tag        = $div_tags[0];
+            $div_tag->style = 'width: 100% !important;height: auto !important;aspect-ratio: 16/9;';
+        }
+        return $meta_value_html_obj->__toString();
+    };
 
-	if ( isset( $saved_options['whitelabel_id'] ) && '' !== (string) $saved_options['whitelabel_id'] ) {
-		$redirect_param = array(
-			'site'      => 'wl3',
-			'cobrandId' => (string) $saved_options['whitelabel_id'],
-		);
-	}
+    // If multiple values (archive pages) process each one individually
+    if ( false === $single && is_array( $meta_value ) ) {
+        foreach ( $meta_value as $key => $value ) {
+            $meta_value[ $key ] = $apply_embed_modifications( $value );
+        }
+        return $meta_value;
+    }
 
-	// Add site redirect param in script src param.
-	$meta_value_html_obj = str_get_html( $meta_value );
-	if ( false === $meta_value_html_obj ) {
-		return $meta_value;
-	}
-	$script_tags = $meta_value_html_obj->find( 'script' );
-	if ( 0 === count( $script_tags ) ) {
-		try {
-			$video_id  = $meta_cache['video_id'][0];
-			$more_data = lvjm_get_embed_and_actors( array( 'video_id' => $video_id ) );
-
-			// Update embed player.
-			update_post_meta( $object_id, lvjm_get_embed_key(), $more_data['embed'] );
-
-			$custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
-			if ( '' === $custom_actors ) {
-				$custom_actors = 'actors';
-			}
-			if ( ! empty( $more_data['performer_name'] ) ) {
-				wp_add_object_terms( $object_id, $more_data['performer_name'], $custom_actors );
-			}
-			return __( 'This video is not available in your country', 'lvjm_lang' );
-		} catch ( \Exception $exception ) {
-			unset( $exception );
-			return __( 'This video is not available in your country', 'lvjm_lang' );
-		}
-	}
-	$script_tag       = $script_tags[0];
-	$script_tag->src .= '&' . http_build_query( $redirect_param );
-
-	// add lvjm-player class to the video player id.
-	$div_tags = $meta_value_html_obj->find( 'div.player' );
-	if ( 0 !== count( $div_tags ) ) {
-		$div_tag        = $div_tags[0];
-		$div_tag->style = 'width: 100% !important;height: auto !important;aspect-ratio: 16/9;';
-	}
-	return $meta_value_html_obj->__toString();
+    // Single value case
+    return $apply_embed_modifications( $meta_value );
 }
 
 /**
