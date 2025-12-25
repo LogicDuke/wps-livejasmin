@@ -33,31 +33,55 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			);
 		}
 
+		$list_cache_key = 'lvjm_vpapi_list_thumbs_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
 		$cache_key = 'lvjm_vpapi_thumbs_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
 		$use_cache = true;
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER && '' !== $force ) {
 			$use_cache = false;
 		}
-                if ( $use_cache ) {
-                        $cached = get_transient( $cache_key );
-                        if ( is_array( $cached ) ) {
-                                if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-                                        lvjm_importer_log(
-                                                'info',
-                                                sprintf(
-                                                        'Thumbs cache hit video_id=%s partner_id=%s locale=%s status=%s thumb_url=%s thumbs_samples=%s',
-                                                        $video_id,
-                                                        $partner_id,
-                                                        $locale,
-                                                        isset( $cached['status'] ) ? $cached['status'] : 'n/a',
-                                                        isset( $cached['thumb_url'] ) ? $cached['thumb_url'] : '',
-                                                        empty( $cached['thumbs_urls'] ) ? 'none' : implode( ',', array_slice( (array) $cached['thumbs_urls'], 0, 2 ) )
-                                                )
-                                        );
-                                }
-                                wp_send_json_success( $cached );
-                        }
-                }
+		if ( $use_cache ) {
+			$cached_list = get_transient( $list_cache_key );
+			if ( is_array( $cached_list ) && ! empty( $cached_list['thumbs_urls'] ) ) {
+				if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+					lvjm_importer_log(
+						'info',
+						sprintf(
+							'Thumbs source=list-cache video_id=%s partner_id=%s locale=%s status=%s thumb_url=%s thumbs_samples=%s',
+							$video_id,
+							$partner_id,
+							$locale,
+							isset( $cached_list['status'] ) ? $cached_list['status'] : 'n/a',
+							isset( $cached_list['thumb_url'] ) ? $cached_list['thumb_url'] : '',
+							empty( $cached_list['thumbs_urls'] ) ? 'none' : implode( ',', array_slice( (array) $cached_list['thumbs_urls'], 0, 2 ) )
+						)
+					);
+				}
+				wp_send_json_success( $cached_list );
+			}
+
+			$cached = get_transient( $cache_key );
+			if ( is_array( $cached ) ) {
+				if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+					lvjm_importer_log(
+						'info',
+						sprintf(
+							'Thumbs cache hit video_id=%s partner_id=%s locale=%s status=%s thumb_url=%s thumbs_samples=%s',
+							$video_id,
+							$partner_id,
+							$locale,
+							isset( $cached['status'] ) ? $cached['status'] : 'n/a',
+							isset( $cached['thumb_url'] ) ? $cached['thumb_url'] : '',
+							empty( $cached['thumbs_urls'] ) ? 'none' : implode( ',', array_slice( (array) $cached['thumbs_urls'], 0, 2 ) )
+						)
+					);
+				}
+				wp_send_json_success( $cached );
+			}
+		}
+
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			lvjm_importer_log( 'info', 'Thumbs source=details-fallback' );
+		}
 
 		$details_payload = lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale );
 		$details_video   = lvjm_extract_vpapi_video_object( $details_payload );
