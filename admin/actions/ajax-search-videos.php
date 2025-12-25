@@ -50,9 +50,39 @@ function lvjm_log_importer_video_debug( $context, $video ) {
 function lvjm_normalize_thumb_urls( $thumbs_urls ) {
     $normalized = array();
     foreach ( (array) $thumbs_urls as $thumb ) {
+        $thumb = str_replace( '\\/', '/', (string) $thumb );
         $normalized[] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb ) : $thumb;
     }
     return array_values( array_unique( array_filter( $normalized ) ) );
+}
+
+function lvjm_normalize_list_preview_images( $preview_images ) {
+    $normalized = array();
+
+    if ( ! is_array( $preview_images ) ) {
+        return $normalized;
+    }
+
+    foreach ( $preview_images as $preview_image ) {
+        $thumb = '';
+        if ( is_array( $preview_image ) ) {
+            if ( isset( $preview_image['url'] ) ) {
+                $thumb = $preview_image['url'];
+            } elseif ( isset( $preview_image['src'] ) ) {
+                $thumb = $preview_image['src'];
+            }
+        } else {
+            $thumb = $preview_image;
+        }
+
+        $thumb = str_replace( '\\/', '/', (string) $thumb );
+        $thumb = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb ) : $thumb;
+        if ( '' !== $thumb ) {
+            $normalized[] = $thumb;
+        }
+    }
+
+    return array_values( array_unique( $normalized ) );
 }
 
 function lvjm_find_model_video_ids( $performer_query ) {
@@ -363,12 +393,58 @@ function lvjm_search_videos( $params = '' ) {
     $search_videos = new LVJM_Search_Videos( $params );
     if ( ! $search_videos->has_errors() ) {
         $videos = $search_videos->get_videos();
+        $partner_id = isset( $params['partner']['id'] ) ? $params['partner']['id'] : '';
+        $locale     = isset( $params['partner']['locale'] ) ? $params['partner']['locale'] : ( isset( $params['locale'] ) ? $params['locale'] : '' );
+        $list_log_count = 0;
         foreach ( $videos as &$video ) {
+            $preview_images = isset( $video['previewImages'] ) ? $video['previewImages'] : null;
+            if ( null !== $preview_images ) {
+                $video['thumbs_urls'] = lvjm_normalize_list_preview_images( $preview_images );
+            }
+            if ( isset( $video['thumbImage'] ) && '' !== $video['thumbImage'] ) {
+                $thumb_image = str_replace( '\\/', '/', (string) $video['thumbImage'] );
+                $video['thumb_url'] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb_image ) : $thumb_image;
+            }
             if ( isset( $video['thumb_url'] ) && function_exists( 'lvjm_https_url' ) ) {
                 $video['thumb_url'] = lvjm_https_url( $video['thumb_url'] );
             }
             if ( isset( $video['thumbs_urls'] ) ) {
                 $video['thumbs_urls'] = lvjm_normalize_thumb_urls( $video['thumbs_urls'] );
+            } else {
+                $video['thumbs_urls'] = array();
+            }
+
+            if ( '' !== $partner_id && isset( $video['id'] ) ) {
+                $cache_key = sprintf(
+                    'lvjm_vpapi_list_thumbs_%s_%s_%s',
+                    sanitize_key( $partner_id ),
+                    sanitize_key( $video['id'] ),
+                    sanitize_key( $locale )
+                );
+                set_transient(
+                    $cache_key,
+                    array(
+                        'thumb_url'   => isset( $video['thumb_url'] ) ? $video['thumb_url'] : '',
+                        'thumbs_urls' => (array) $video['thumbs_urls'],
+                        'status'      => 'ok',
+                    ),
+                    12 * HOUR_IN_SECONDS
+                );
+            }
+
+            if ( lvjm_debug_importer_enabled() && $list_log_count < 2 ) {
+                $preview_count = is_array( $preview_images ) ? count( array_filter( $preview_images ) ) : 0;
+                $thumb_present = ( isset( $video['thumbImage'] ) && '' !== $video['thumbImage'] ) ? 'yes' : 'no';
+                lvjm_importer_log(
+                    'info',
+                    sprintf(
+                        'LIST thumbs: video_id=%s previewImages_count=%d thumbImage_present=%s',
+                        isset( $video['id'] ) ? $video['id'] : 'n/a',
+                        $preview_count,
+                        $thumb_present
+                    )
+                );
+                ++$list_log_count;
             }
         }
         unset( $video );
