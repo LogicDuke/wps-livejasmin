@@ -30,6 +30,30 @@ if ( ! function_exists( 'lvjm_importer_log' ) ) {
 	}
 }
 
+if ( ! function_exists( 'lvjm_mask_sensitive_payload' ) ) {
+	/**
+	 * Mask sensitive fields in logs.
+	 *
+	 * @param string $payload Raw payload string.
+	 * @return string
+	 */
+	function lvjm_mask_sensitive_payload( $payload ) {
+		$payload = (string) $payload;
+		if ( '' === $payload ) {
+			return $payload;
+		}
+
+		$patterns = array(
+			'/(\"accessKey\"\s*:\s*\")([^"]+)(\")/i',
+			'/(\"psid\"\s*:\s*\")([^"]+)(\")/i',
+			'/(accessKey=)([^&\s"]+)/i',
+			'/(psid=)([^&\s"]+)/i',
+		);
+
+		return preg_replace( $patterns, '$1***$3', $payload );
+	}
+}
+
 if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
 	/**
 	 * Fetch VPAPI video details and cache them with transients.
@@ -109,12 +133,21 @@ if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
 		$status_code = wp_remote_retrieve_response_code( $response );
 		$GLOBALS['lvjm_vpapi_last_status_code'] = $status_code;
 		$GLOBALS['lvjm_vpapi_last_details_url'] = $details_url;
+		$raw_body = wp_remote_retrieve_body( $response );
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			$logged_once = isset( $GLOBALS['lvjm_vpapi_logged_payload'] ) ? (bool) $GLOBALS['lvjm_vpapi_logged_payload'] : false;
+			if ( ! $logged_once && '' !== $raw_body ) {
+				$GLOBALS['lvjm_vpapi_logged_payload'] = true;
+				$masked_payload                     = lvjm_mask_sensitive_payload( substr( $raw_body, 0, 1500 ) );
+				lvjm_importer_log( 'info', 'VPAPI details raw payload (truncated)=' . $masked_payload );
+			}
+		}
 		if ( $status_code < 200 || $status_code >= 300 ) {
 			lvjm_importer_log( 'warning', 'VPAPI details request failed for ' . $details_url . ' (status: ' . $status_code . ').' );
 			return array();
 		}
 
-		$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+		$response_body = json_decode( $raw_body, true );
 		if ( ! is_array( $response_body ) ) {
 			lvjm_importer_log( 'warning', 'VPAPI details request failed for ' . $details_url . ' (status: ' . $status_code . ').' );
 			return array();
@@ -136,6 +169,18 @@ if ( ! function_exists( 'lvjm_extract_vpapi_video_object' ) ) {
 	function lvjm_extract_vpapi_video_object( $details ) {
 		if ( ! is_array( $details ) ) {
 			return array();
+		}
+
+		if ( isset( $details['data']['video'] ) && is_array( $details['data']['video'] ) ) {
+			return $details['data']['video'];
+		}
+
+		if ( isset( $details['data']['item'] ) && is_array( $details['data']['item'] ) ) {
+			return $details['data']['item'];
+		}
+
+		if ( isset( $details['data']['items'][0] ) && is_array( $details['data']['items'][0] ) ) {
+			return $details['data']['items'][0];
 		}
 
 		$wrappers = array( 'data', 'video', 'item' );
@@ -178,21 +223,20 @@ if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
 	 */
 	function lvjm_collect_vpapi_thumbs_urls( $details ) {
 		$thumbs_urls = array();
-		$thumbs_keys = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbnailUrls', 'thumbnailsUrls' );
+		$matched_keys = array();
+		$sample_urls  = array();
+		$thumbs_keys  = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbnailUrls', 'thumbnailsUrls', 'thumbnails', 'thumbs', 'timelineThumbnails' );
 		foreach ( $thumbs_keys as $thumbs_key ) {
-			if ( isset( $details[ $thumbs_key ] ) && is_array( $details[ $thumbs_key ] ) ) {
-				foreach ( $details[ $thumbs_key ] as $thumb_url ) {
-					$thumb_url = lvjm_https_url( $thumb_url );
-					if ( '' !== $thumb_url ) {
-						$thumbs_urls[] = $thumb_url;
-					}
-				}
+			if ( ! isset( $details[ $thumbs_key ] ) ) {
+				continue;
 			}
-		}
-		$thumb_groups = array( 'thumbs', 'thumbnails' );
-		foreach ( $thumb_groups as $thumb_group ) {
-			if ( isset( $details[ $thumb_group ] ) && is_array( $details[ $thumb_group ] ) ) {
-				foreach ( $details[ $thumb_group ] as $thumb ) {
+			$value = $details[ $thumbs_key ];
+			$matched_keys[] = $thumbs_key;
+			if ( is_string( $value ) ) {
+				$value = array_map( 'trim', explode( ',', $value ) );
+			}
+			if ( is_array( $value ) ) {
+				foreach ( $value as $thumb ) {
 					$thumb_url = '';
 					if ( is_array( $thumb ) ) {
 						$thumb_url = isset( $thumb['url'] ) ? $thumb['url'] : ( isset( $thumb['src'] ) ? $thumb['src'] : '' );
@@ -202,12 +246,47 @@ if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
 					$thumb_url = lvjm_https_url( $thumb_url );
 					if ( '' !== $thumb_url ) {
 						$thumbs_urls[] = $thumb_url;
+						if ( count( $sample_urls ) < 2 ) {
+							$sample_urls[] = $thumb_url;
+						}
+					}
+				}
+			}
+		}
+		if ( isset( $details['assets']['thumbnails'] ) && is_array( $details['assets']['thumbnails'] ) ) {
+			$matched_keys[] = 'assets.thumbnails';
+			foreach ( $details['assets']['thumbnails'] as $thumb ) {
+				$thumb_url = '';
+				if ( is_array( $thumb ) ) {
+					$thumb_url = isset( $thumb['url'] ) ? $thumb['url'] : ( isset( $thumb['src'] ) ? $thumb['src'] : '' );
+				} elseif ( is_string( $thumb ) ) {
+					$thumb_url = $thumb;
+				}
+				$thumb_url = lvjm_https_url( $thumb_url );
+				if ( '' !== $thumb_url ) {
+					$thumbs_urls[] = $thumb_url;
+					if ( count( $sample_urls ) < 2 ) {
+						$sample_urls[] = $thumb_url;
 					}
 				}
 			}
 		}
 
-		return array_values( array_unique( $thumbs_urls ) );
+		$thumbs_urls = array_values( array_unique( $thumbs_urls ) );
+
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			lvjm_importer_log(
+				'info',
+				sprintf(
+					'VPAPI thumbs collected keys=%s count=%d samples=%s',
+					empty( $matched_keys ) ? 'none' : implode( ',', array_unique( $matched_keys ) ),
+					count( $thumbs_urls ),
+					empty( $sample_urls ) ? 'none' : implode( ',', $sample_urls )
+				)
+			);
+		}
+
+		return $thumbs_urls;
 	}
 }
 

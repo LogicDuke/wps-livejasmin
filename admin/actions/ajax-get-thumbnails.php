@@ -22,6 +22,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		$video_id   = isset( $_POST['video_id'] ) ? sanitize_text_field( wp_unslash( $_POST['video_id'] ) ) : '';
 		$partner_id = isset( $_POST['partner_id'] ) ? sanitize_text_field( wp_unslash( $_POST['partner_id'] ) ) : '';
 		$locale     = isset( $_POST['locale'] ) ? sanitize_text_field( wp_unslash( $_POST['locale'] ) ) : '';
+		$force      = isset( $_POST['force'] ) ? sanitize_text_field( wp_unslash( $_POST['force'] ) ) : '';
 
 		if ( '' === $video_id ) {
 			wp_send_json_error(
@@ -33,9 +34,15 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		}
 
 		$cache_key = 'lvjm_vpapi_thumbs_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
-		$cached    = get_transient( $cache_key );
-		if ( is_array( $cached ) ) {
-			wp_send_json_success( $cached );
+		$use_cache = true;
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER && '' !== $force ) {
+			$use_cache = false;
+		}
+		if ( $use_cache ) {
+			$cached = get_transient( $cache_key );
+			if ( is_array( $cached ) ) {
+				wp_send_json_success( $cached );
+			}
 		}
 
 		$details_payload = lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale );
@@ -49,6 +56,8 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 				'detail'  => function_exists( 'lvjm_get_vpapi_detail_value' ),
 			);
 			$details_keys  = is_array( $details_payload ) ? implode( ',', array_keys( $details_payload ) ) : 'non-array';
+			$data_keys     = ( isset( $details_payload['data'] ) && is_array( $details_payload['data'] ) ) ? implode( ',', array_keys( $details_payload['data'] ) ) : 'n/a';
+			$video_keys    = ( isset( $details_payload['data']['video'] ) && is_array( $details_payload['data']['video'] ) ) ? implode( ',', array_keys( $details_payload['data']['video'] ) ) : 'n/a';
 			$thumb_keys    = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbs', 'thumbnails', 'thumbnailUrls', 'thumbnailsUrls' );
 			$thumb_present = array();
 			foreach ( $thumb_keys as $thumb_key ) {
@@ -60,13 +69,16 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			lvjm_importer_log(
 				'info',
 				sprintf(
-					'Thumbs debug video_id=%s partner_id=%s locale=%s helpers=%s status=%s details_keys=[%s] thumb_keys=[%s]',
+					'Thumbs debug video_id=%s partner_id=%s locale=%s helpers=%s status=%s details_empty=%s details_keys=[%s] data_keys=[%s] data_video_keys=[%s] thumb_keys=[%s]',
 					$video_id,
 					$partner_id,
 					$locale,
 					wp_json_encode( $helper_status ),
 					is_null( $status_code ) ? 'n/a' : $status_code,
+					empty( $details_video ) ? 'yes' : 'no',
 					$details_keys,
+					$data_keys,
+					$video_keys,
 					implode( ',', $thumb_present )
 				)
 			);
@@ -79,7 +91,10 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 				'status'        => 'missing_details',
 				'error_message' => 'VPAPI details unavailable.',
 			);
-			set_transient( $cache_key, $payload, 12 * HOUR_IN_SECONDS );
+			set_transient( $cache_key, $payload, 5 * MINUTE_IN_SECONDS );
+			if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+				lvjm_importer_log( 'info', 'Thumbs response status=missing_details count=0' );
+			}
 			wp_send_json_success( $payload );
 		}
 
@@ -97,7 +112,21 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			'status'      => empty( $thumbs_urls ) ? 'no_thumbnails' : 'ok',
 		);
 
-		set_transient( $cache_key, $payload, 12 * HOUR_IN_SECONDS );
+		if ( 'ok' === $payload['status'] ) {
+			set_transient( $cache_key, $payload, 12 * HOUR_IN_SECONDS );
+		} elseif ( 'no_thumbnails' === $payload['status'] ) {
+			set_transient( $cache_key, $payload, 15 * MINUTE_IN_SECONDS );
+		}
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			lvjm_importer_log(
+				'info',
+				sprintf(
+					'Thumbs response status=%s count=%d',
+					$payload['status'],
+					count( $thumbs_urls )
+				)
+			);
+		}
 
 		wp_send_json_success( $payload );
 	}

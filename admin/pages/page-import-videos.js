@@ -734,11 +734,13 @@ function LVJM_pageImportVideos() {
                     this.logThumbDebug('thumbs-load-start:' + context, video);
                     var partnerId = video.partner_id || this.selectedPartner;
                     var partnerLocale = video.partner_locale || (this.selectedPartnerObject && this.selectedPartnerObject.locale ? this.selectedPartnerObject.locale : '');
+                    var forceRefresh = this.data && this.data.debugImporter ? 1 : 0;
                     if (this.data && this.data.debugImporter) {
                         console.log('[TMW-FIX] Thumbs payload', {
                             video_id: video.id,
                             partner_id: partnerId,
-                            locale: partnerLocale
+                            locale: partnerLocale,
+                            force: forceRefresh
                         });
                     }
                     this.$http.post(
@@ -747,7 +749,8 @@ function LVJM_pageImportVideos() {
                             nonce: LVJM_import_videos.ajax.nonce,
                             video_id: video.id,
                             partner_id: partnerId,
-                            locale: partnerLocale
+                            locale: partnerLocale,
+                            force: forceRefresh ? 1 : ''
                         }, {
                             emulateJSON: true
                         })
@@ -771,6 +774,14 @@ function LVJM_pageImportVideos() {
                             video.thumbs_status = payload.status;
                         }
                         video.thumbs_loaded = true;
+                        if (this.data && this.data.debugImporter) {
+                            console.log('[TMW-FIX] Thumbs response', {
+                                video_id: video.id,
+                                thumbs_status: video.thumbs_status,
+                                thumbs_urls_length: Array.isArray(video.thumbs_urls) ? video.thumbs_urls.length : 0,
+                                thumb_url: video.thumb_url
+                            });
+                        }
                     }, (response) => {
                         video.thumbs_loaded = true;
                         video.thumbs_status = 'error';
