@@ -47,11 +47,16 @@ function lvjm_log_importer_video_debug( $context, $video ) {
     }
 }
 
+function lvjm_normalize_vpapi_url( $url ) {
+    $url = str_replace( '\\/\\/', '//', (string) $url );
+    $url = str_replace( '\\/', '/', $url );
+    return function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $url ) : $url;
+}
+
 function lvjm_normalize_thumb_urls( $thumbs_urls ) {
     $normalized = array();
     foreach ( (array) $thumbs_urls as $thumb ) {
-        $thumb = str_replace( '\\/', '/', (string) $thumb );
-        $normalized[] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb ) : $thumb;
+        $normalized[] = lvjm_normalize_vpapi_url( $thumb );
     }
     return array_values( array_unique( array_filter( $normalized ) ) );
 }
@@ -75,8 +80,7 @@ function lvjm_normalize_list_preview_images( $preview_images ) {
             $thumb = $preview_image;
         }
 
-        $thumb = str_replace( '\\/', '/', (string) $thumb );
-        $thumb = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb ) : $thumb;
+        $thumb = lvjm_normalize_vpapi_url( $thumb );
         if ( '' !== $thumb ) {
             $normalized[] = $thumb;
         }
@@ -404,12 +408,15 @@ function lvjm_search_videos( $params = '' ) {
                 $video['thumbs_urls'] = array();
             }
 
+            $thumb_url = '';
             if ( isset( $video['thumbImage'] ) && '' !== $video['thumbImage'] ) {
-                $thumb_image = str_replace( '\\/', '/', (string) $video['thumbImage'] );
-                $video['thumb_url'] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb_image ) : $thumb_image;
-            } else {
-                $video['thumb_url'] = '';
+                $thumb_url = $video['thumbImage'];
+            } elseif ( isset( $video['thumb_url'] ) && '' !== $video['thumb_url'] ) {
+                $thumb_url = $video['thumb_url'];
+            } elseif ( isset( $video['thumbUrl'] ) && '' !== $video['thumbUrl'] ) {
+                $thumb_url = $video['thumbUrl'];
             }
+            $video['thumb_url'] = '' !== $thumb_url ? lvjm_normalize_vpapi_url( $thumb_url ) : '';
 
             if ( isset( $video['thumbs_urls'] ) ) {
                 $video['thumbs_urls'] = lvjm_normalize_thumb_urls( $video['thumbs_urls'] );
@@ -461,7 +468,7 @@ function lvjm_search_videos( $params = '' ) {
                 lvjm_importer_log(
                     'info',
                     sprintf(
-                        '[TMW-FIX] Search thumbs sample video_id=%s thumb_url=%s thumbs_urls_count=%d first_thumbs_sample=%s',
+                        '[TMW-FIX] Search thumbs sample video_id=%s thumb_url=%s thumbs_urls_count=%d first_thumb_sample=%s',
                         isset( $first['id'] ) ? $first['id'] : 'n/a',
                         isset( $first['thumb_url'] ) ? $first['thumb_url'] : '',
                         $first_thumbs_count,
