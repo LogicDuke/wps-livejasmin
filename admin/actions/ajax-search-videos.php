@@ -400,14 +400,17 @@ function lvjm_search_videos( $params = '' ) {
             $preview_images = isset( $video['previewImages'] ) ? $video['previewImages'] : null;
             if ( null !== $preview_images ) {
                 $video['thumbs_urls'] = lvjm_normalize_list_preview_images( $preview_images );
+            } else {
+                $video['thumbs_urls'] = array();
             }
+
             if ( isset( $video['thumbImage'] ) && '' !== $video['thumbImage'] ) {
                 $thumb_image = str_replace( '\\/', '/', (string) $video['thumbImage'] );
                 $video['thumb_url'] = function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $thumb_image ) : $thumb_image;
+            } else {
+                $video['thumb_url'] = '';
             }
-            if ( isset( $video['thumb_url'] ) && function_exists( 'lvjm_https_url' ) ) {
-                $video['thumb_url'] = lvjm_https_url( $video['thumb_url'] );
-            }
+
             if ( isset( $video['thumbs_urls'] ) ) {
                 $video['thumbs_urls'] = lvjm_normalize_thumb_urls( $video['thumbs_urls'] );
             } else {
@@ -451,17 +454,18 @@ function lvjm_search_videos( $params = '' ) {
         if ( ! empty( $videos ) && isset( $videos[0] ) ) {
             lvjm_log_importer_video_debug( 'normal_search', $videos[0] );
             if ( lvjm_debug_importer_enabled() ) {
-                $first = $videos[0];
-                $first_samples = isset( $first['thumbs_urls'] ) ? array_slice( (array) $first['thumbs_urls'], 0, 2 ) : array();
+                $first              = $videos[0];
+                $first_thumbs_urls  = isset( $first['thumbs_urls'] ) ? (array) $first['thumbs_urls'] : array();
+                $first_thumbs_count = count( $first_thumbs_urls );
+                $first_sample       = '' !== $first_thumbs_count ? $first_thumbs_urls[0] : 'none';
                 lvjm_importer_log(
                     'info',
                     sprintf(
-                        'Search thumbs video_id=%s partner_id=%s locale=%s thumb_url=%s thumbs_samples=%s',
+                        '[TMW-FIX] Search thumbs sample video_id=%s thumb_url=%s thumbs_urls_count=%d first_thumbs_sample=%s',
                         isset( $first['id'] ) ? $first['id'] : 'n/a',
-                        isset( $params['partner']['id'] ) ? $params['partner']['id'] : 'n/a',
-                        isset( $params['partner']['locale'] ) ? $params['partner']['locale'] : ( isset( $params['locale'] ) ? $params['locale'] : '' ),
                         isset( $first['thumb_url'] ) ? $first['thumb_url'] : '',
-                        empty( $first_samples ) ? 'none' : implode( ',', $first_samples )
+                        $first_thumbs_count,
+                        $first_sample
                     )
                 );
             }
