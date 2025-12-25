@@ -33,6 +33,7 @@ function lvjm_load_import_videos_data() {
 		'videosLimit'       => xbox_get_field_value( 'lvjm-options', 'search-results' ),
 		'WPCats'            => LVJM()->get_wp_cats(),
 		'autoImportEnabled' => xbox_get_field_value( 'lvjm-options', 'lvjm-enable-auto-import' ),
+		'debugImporter'     => ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ),
 	);
 	wp_send_json( $data );
 	wp_die();

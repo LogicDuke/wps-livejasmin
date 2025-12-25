@@ -10,6 +10,41 @@ function lvjm_normalize_performer_name( $name ) {
     return preg_replace( '/[^a-z0-9]/', '', $normalized );
 }
 
+function lvjm_debug_importer_enabled() {
+    return defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER;
+}
+
+function lvjm_log_importer_video_debug( $context, $video ) {
+    static $logged = array();
+
+    if ( isset( $logged[ $context ] ) || ! lvjm_debug_importer_enabled() ) {
+        return;
+    }
+    $logged[ $context ] = true;
+
+    $keys         = is_array( $video ) ? array_keys( $video ) : array();
+    $thumbs_urls  = isset( $video['thumbs_urls'] ) && is_array( $video['thumbs_urls'] ) ? $video['thumbs_urls'] : array();
+    $checked      = isset( $video['checked'] ) ? $video['checked'] : null;
+    $thumb_url    = isset( $video['thumb_url'] ) ? $video['thumb_url'] : '';
+    $trailer_url  = isset( $video['trailer_url'] ) ? $video['trailer_url'] : '';
+
+    $message = sprintf(
+        '[TMW-FIX] Importer debug (%s): keys=[%s] checked=%s thumb_url=%s trailer_url=%s thumbs_urls_count=%d',
+        $context,
+        implode( ',', $keys ),
+        var_export( $checked, true ),
+        $thumb_url,
+        $trailer_url,
+        count( $thumbs_urls )
+    );
+
+    if ( function_exists( 'WPSCORE' ) ) {
+        WPSCORE()->write_log( 'info', $message, __FILE__, __LINE__ );
+    } else {
+        error_log( $message );
+    }
+}
+
 function lvjm_find_model_video_ids( $performer_query ) {
     $performer_query = lvjm_normalize_performer_name( $performer_query );
     if ( '' === $performer_query ) {
@@ -401,28 +436,28 @@ function lvjm_search_videos( $params = '' ) {
                 $is_hd = (bool) $is_hd;
             }
 
-            $videos[] = array(
-                'id'               => $video_id,
-                'title'            => isset( $detail['title'] ) ? $detail['title'] : '',
-                'tags'             => isset( $detail['tags'] ) ? $detail['tags'] : '',
-                'actors'           => $actors,
-                'actors_names'     => $performer_label,
-                'actors_img'       => '',
-                'categories_names' => '',
-                'duration'         => is_numeric( $duration ) ? (int) $duration : 0,
-                'thumb_url'        => $thumb_url,
-                'thumbs_urls'      => $thumbs_urls,
-                'trailer_url'      => $trailer_url,
-                'tracking_url'     => $tracking_url,
-                'quality'          => $quality,
-                'isHd'             => $is_hd,
-                'uploader'         => '',
-                'video_url'        => $video_url,
-                'url'              => $video_url,
-                'checked'          => false,
-                'desc'             => $description,
-                'embed'            => '',
+            $video_entry = LVJM_Item::get_data_for_json(
+                array(
+                    'id'            => $video_id,
+                    'title'         => isset( $detail['title'] ) ? $detail['title'] : '',
+                    'desc'          => $description,
+                    'tags'          => isset( $detail['tags'] ) ? $detail['tags'] : '',
+                    'length'        => is_numeric( $duration ) ? (int) $duration : 0,
+                    'length_format' => 'ss',
+                    'thumb_url'     => $thumb_url,
+                    'thumbs_urls'   => $thumbs_urls,
+                    'trailer_url'   => $trailer_url,
+                    'video_url'     => $video_url,
+                    'tracking_url'  => $tracking_url,
+                    'quality'       => $quality,
+                    'isHd'          => $is_hd,
+                    'uploader'      => '',
+                    'code'          => '',
+                    'actors'        => $actors,
+                )
             );
+            $videos[] = $video_entry;
+            lvjm_log_importer_video_debug( 'performer_csv', $video_entry );
             ++$added;
             if ( $added >= $limit ) {
                 break;
@@ -456,6 +491,9 @@ function lvjm_search_videos( $params = '' ) {
     $search_videos = new LVJM_Search_Videos( $params );
     if ( ! $search_videos->has_errors() ) {
         $videos = $search_videos->get_videos();
+        if ( ! empty( $videos ) && isset( $videos[0] ) ) {
+            lvjm_log_importer_video_debug( 'normal_search', $videos[0] );
+        }
     }
 
     // Performer filtering
