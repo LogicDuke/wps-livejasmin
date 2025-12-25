@@ -39,14 +39,26 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	$client_ip             = '90.90.90.90';
 	$api_url               = 'https://pt.ptawe.com/api/video-promotion/v1/details/' . $params['video_id'] . '?clientIp=' . $client_ip . '&primaryColor=' . $primary_color . '&labelColor=' . $label_color . '&psid=' . $psid . '&accessKey=' . $access_key;
 	$args                  = array(
-		'timeout'   => 300,
+		'timeout'   => 30,
 		'sslverify' => false,
 	);
 
 	$response = wp_remote_get( $api_url, $args );
 
 	if ( is_wp_error( $response ) ) {
-		return false;
+		if ( function_exists( 'WPSCORE' ) ) {
+			WPSCORE()->write_log(
+				'warning',
+				'[LVJM] VPAPI request failed for video_id ' . $params['video_id'] . '. Error: ' . $response->get_error_message() . '. URL: ' . $api_url,
+				__FILE__,
+				__LINE__
+			);
+		}
+		if ( $ajax_call ) {
+			wp_send_json( $output );
+			wp_die();
+		}
+		return $output;
 	}
 	$container_id    = 'lvjm-player-' . $params['video_id'];
 	$response_body   = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -56,11 +68,20 @@ function lvjm_get_embed_and_actors( $params = '' ) {
     $embed_container = '<div class="player" data-awe-container-id="' . $container_id . '" style="aspect-ratio:16/9;width:100%;"></div>';
 
 	if ( ! isset( $response_body['data'], $response_body['data']['playerEmbedScript'] ) ) {
+		if ( function_exists( 'WPSCORE' ) ) {
+			$status_code = wp_remote_retrieve_response_code( $response );
+			WPSCORE()->write_log(
+				'warning',
+				'[LVJM] Missing playerEmbedScript for video_id ' . $params['video_id'] . ' (HTTP ' . $status_code . '). URL: ' . $api_url . '. Body: ' . substr( wp_remote_retrieve_body( $response ), 0, 500 ),
+				__FILE__,
+				__LINE__
+			);
+		}
 		if ( $ajax_call ) {
 			wp_send_json( $output );
 			wp_die();
 		}
-		throw new Exception( 'AwEmpire Api not working' );
+		return $output;
 	}
 
 	$embed_script = str_replace( '{CONTAINER}', $container_id, $response_body['data']['playerEmbedScript'] );
