@@ -756,7 +756,7 @@ function LVJM_pageImportVideos() {
                     this.$set(video, 'thumb_error', false);
                 },
                 shouldShowThumbsTab: function (video) {
-                    return !!(video && (this.hasThumbs(video) || video.thumb_url || video.thumbs_loading || video.thumbs_loaded));
+                    return !!(video && (this.hasThumbs(video) || video.thumb_url || video.thumbs_loading || video.thumbs_loaded || typeof video.thumbs_urls !== 'undefined'));
                 },
                 getThumbsDebugReason: function (video) {
                     if (!video) {

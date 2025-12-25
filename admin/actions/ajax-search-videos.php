@@ -157,11 +157,21 @@ function lvjm_load_vpapi_master_index() {
         return $index;
     }
 
-    $index     = array();
-    $file_path = dirname( __DIR__, 2 ) . '/data/vpapi_master.csv';
-    if ( ! file_exists( $file_path ) ) {
+    $index = array();
+    $file_candidates = array(
+        dirname( __DIR__, 2 ) . '/data/vpapi_master_full.csv',
+        dirname( __DIR__, 2 ) . '/data/vpapi_master.csv',
+    );
+    $file_path = '';
+    foreach ( $file_candidates as $candidate ) {
+        if ( file_exists( $candidate ) ) {
+            $file_path = $candidate;
+            break;
+        }
+    }
+    if ( '' === $file_path ) {
         // CSV missing: log for debugging.
-        error_log( '[TMW-FIX] vpapi_master.csv is missing at ' . $file_path );
+        error_log( '[TMW-FIX] vpapi_master.csv is missing at ' . implode( ', ', $file_candidates ) );
         return $index;
     }
 
@@ -172,10 +182,17 @@ function lvjm_load_vpapi_master_index() {
         return $index;
     }
 
-    $is_header = true;
+    $is_header  = true;
+    $header_map = array();
     while ( false !== ( $row = fgetcsv( $handle ) ) ) {
         if ( $is_header ) {
             $is_header = false;
+            foreach ( $row as $idx => $value ) {
+                $key = strtolower( trim( (string) $value ) );
+                if ( '' !== $key ) {
+                    $header_map[ $key ] = $idx;
+                }
+            }
             continue;
         }
 
@@ -184,17 +201,85 @@ function lvjm_load_vpapi_master_index() {
         }
 
         $video_id = trim( (string) $row[0] );
+        if ( isset( $header_map['video_id'] ) ) {
+            $video_id = trim( (string) $row[ $header_map['video_id'] ] );
+        }
+        if ( '' === $video_id ) {
+            continue;
+        }
+
+        $thumb_image = '';
+        if ( isset( $header_map['thumbimage'] ) ) {
+            $thumb_image = isset( $row[ $header_map['thumbimage'] ] ) ? trim( (string) $row[ $header_map['thumbimage'] ] ) : '';
+        } elseif ( isset( $header_map['thumb_image'] ) ) {
+            $thumb_image = isset( $row[ $header_map['thumb_image'] ] ) ? trim( (string) $row[ $header_map['thumb_image'] ] ) : '';
+        } elseif ( isset( $header_map['thumb_url'] ) ) {
+            $thumb_image = isset( $row[ $header_map['thumb_url'] ] ) ? trim( (string) $row[ $header_map['thumb_url'] ] ) : '';
+        }
+
+        $preview_images = '';
+        if ( isset( $header_map['previewimages'] ) ) {
+            $preview_images = isset( $row[ $header_map['previewimages'] ] ) ? trim( (string) $row[ $header_map['previewimages'] ] ) : '';
+        } elseif ( isset( $header_map['preview_images'] ) ) {
+            $preview_images = isset( $row[ $header_map['preview_images'] ] ) ? trim( (string) $row[ $header_map['preview_images'] ] ) : '';
+        } elseif ( isset( $header_map['thumbs_urls'] ) ) {
+            $preview_images = isset( $row[ $header_map['thumbs_urls'] ] ) ? trim( (string) $row[ $header_map['thumbs_urls'] ] ) : '';
+        }
+
+        $model_name = isset( $row[1] ) ? trim( (string) $row[1] ) : '';
+        if ( isset( $header_map['model_name'] ) ) {
+            $model_name = isset( $row[ $header_map['model_name'] ] ) ? trim( (string) $row[ $header_map['model_name'] ] ) : '';
+        }
+        $title = isset( $row[2] ) ? trim( (string) $row[2] ) : '';
+        if ( isset( $header_map['title'] ) ) {
+            $title = isset( $row[ $header_map['title'] ] ) ? trim( (string) $row[ $header_map['title'] ] ) : '';
+        }
+        $tags = isset( $row[3] ) ? trim( (string) $row[3] ) : '';
+        if ( isset( $header_map['tags'] ) ) {
+            $tags = isset( $row[ $header_map['tags'] ] ) ? trim( (string) $row[ $header_map['tags'] ] ) : '';
+        }
+
         $index[ $video_id ] = array(
-            'video_id'   => $video_id,
-            'model_name' => isset( $row[1] ) ? trim( (string) $row[1] ) : '',
-            'title'      => isset( $row[2] ) ? trim( (string) $row[2] ) : '',
-            'tags'       => isset( $row[3] ) ? trim( (string) $row[3] ) : '',
+            'video_id'      => $video_id,
+            'model_name'    => $model_name,
+            'title'         => $title,
+            'tags'          => $tags,
+            'thumbImage'    => $thumb_image,
+            'previewImages' => $preview_images,
         );
     }
 
     fclose( $handle );
 
     return $index;
+}
+
+function lvjm_parse_preview_images_field( $preview_images ) {
+    if ( is_array( $preview_images ) ) {
+        return $preview_images;
+    }
+
+    $preview_images = trim( (string) $preview_images );
+    if ( '' === $preview_images ) {
+        return array();
+    }
+
+    if ( 0 === strpos( $preview_images, '[' ) || 0 === strpos( $preview_images, '{' ) ) {
+        $decoded = json_decode( $preview_images, true );
+        if ( is_array( $decoded ) ) {
+            return $decoded;
+        }
+    }
+
+    if ( false !== strpos( $preview_images, '|' ) ) {
+        return array_filter( array_map( 'trim', explode( '|', $preview_images ) ) );
+    }
+
+    if ( false !== strpos( $preview_images, ',' ) ) {
+        return array_filter( array_map( 'trim', explode( ',', $preview_images ) ) );
+    }
+
+    return array( $preview_images );
 }
 
 function lvjm_get_partner_existing_ids( $partner_id ) {
@@ -301,9 +386,38 @@ function lvjm_search_videos( $params = '' ) {
                 }
             }
 
-            $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
-            $thumbs_urls = lvjm_normalize_thumb_urls( $thumbs_urls );
-            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) ) );
+            $thumbs_urls = array();
+            $thumb_url   = '';
+            $thumb_source = '';
+
+            $csv_preview_raw = isset( $detail['previewImages'] ) ? $detail['previewImages'] : ( isset( $detail['preview_images'] ) ? $detail['preview_images'] : '' );
+            $csv_preview     = lvjm_parse_preview_images_field( $csv_preview_raw );
+            $csv_thumbs      = lvjm_normalize_list_preview_images( $csv_preview );
+            $csv_thumb_url   = isset( $detail['thumbImage'] ) ? lvjm_normalize_vpapi_url( $detail['thumbImage'] ) : '';
+            if ( '' === $csv_thumb_url && isset( $detail['thumb_url'] ) ) {
+                $csv_thumb_url = lvjm_normalize_vpapi_url( $detail['thumb_url'] );
+            }
+
+            if ( ! empty( $csv_thumbs ) || '' !== $csv_thumb_url ) {
+                $thumbs_urls  = lvjm_normalize_thumb_urls( $csv_thumbs );
+                $thumb_url    = $csv_thumb_url;
+                $thumb_source = 'csv';
+            }
+
+            if ( empty( $thumbs_urls ) ) {
+                $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
+                $thumbs_urls = lvjm_normalize_thumb_urls( $thumbs_urls );
+                if ( '' === $thumb_source ) {
+                    $thumb_source = 'client_details';
+                }
+            }
+
+            if ( '' === $thumb_url ) {
+                $thumb_url = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) ) );
+                if ( '' === $thumb_source && '' !== $thumb_url ) {
+                    $thumb_source = 'client_details';
+                }
+            }
             if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
                 $thumb_url = $thumbs_urls[0];
             }
@@ -353,13 +467,24 @@ function lvjm_search_videos( $params = '' ) {
                 lvjm_importer_log(
                     'info',
                     sprintf(
-                        'Performer CSV thumbs video_id=%s partner_id=%s locale=%s thumb_url=%s thumbs_samples=%s details_url=%s',
+                        'Performer CSV thumbs source=%s video_id=%s partner_id=%s locale=%s thumb_url=%s thumbs_samples=%s details_url=%s',
+                        '' !== $thumb_source ? $thumb_source : 'unknown',
                         $video_id,
                         $partner_id,
                         $locale,
                         $thumb_url,
                         empty( $thumbs_urls ) ? 'none' : implode( ',', array_slice( $thumbs_urls, 0, 2 ) ),
                         $details_url
+                    )
+                );
+                lvjm_importer_log(
+                    'info',
+                    sprintf(
+                        'Thumbs source=%s video_id=%s count=%d samples=%s',
+                        '' !== $thumb_source ? $thumb_source : 'unknown',
+                        $video_id,
+                        count( $thumbs_urls ),
+                        empty( $thumbs_urls ) ? 'none' : implode( ',', array_slice( $thumbs_urls, 0, 2 ) )
                     )
                 );
             }
