@@ -83,6 +83,17 @@ class LVJM_Json_Item {
 		$this->item['thumbs_urls'] = $this->get_partner_feed_infos( 'feed_item_thumbs_urls', $partner_id, $feed_infos );
 		$this->item['thumbs_urls'] = explode( ',', $this->item['thumbs_urls'] );
 
+		if ( empty( $this->item['thumb_url'] ) ) {
+			$this->item['thumb_url'] = $this->get_raw_item_value( array( 'thumbImage', 'thumb_image', 'thumbUrl', 'thumb_url' ) );
+		}
+
+		if ( empty( $this->item['thumbs_urls'] ) || ( 1 === count( $this->item['thumbs_urls'] ) && '' === $this->item['thumbs_urls'][0] ) ) {
+			$preview_images = $this->get_raw_item_value( array( 'previewImages', 'preview_images' ), null );
+			if ( null !== $preview_images ) {
+				$this->item['thumbs_urls'] = $this->normalize_preview_images( $preview_images );
+			}
+		}
+
 		$this->item['trailer_url']  = $this->get_partner_feed_infos( 'feed_item_trailer_url', $partner_id, $feed_infos );
 		$this->item['video_url']    = $this->get_partner_feed_infos( 'feed_item_video_url', $partner_id, $feed_infos );
 		$this->item['tracking_url'] = $this->get_partner_feed_infos( 'feed_item_join_url', $partner_id, $feed_infos );
@@ -218,5 +229,62 @@ class LVJM_Json_Item {
 			return false;
 		}
 		return LVJM_Item::clean_string( $output );
+	}
+
+	/**
+	 * Get a raw value from the feed item data.
+	 *
+	 * @param array $keys    Keys to check.
+	 * @param mixed $default Default value.
+	 * @return mixed
+	 */
+	private function get_raw_item_value( $keys, $default = '' ) {
+		foreach ( (array) $keys as $key ) {
+			if ( isset( $this->item_all_data[ $key ] ) && '' !== $this->item_all_data[ $key ] ) {
+				return $this->item_all_data[ $key ];
+			}
+		}
+		return $default;
+	}
+
+	/**
+	 * Normalize preview image payloads into URLs.
+	 *
+	 * @param mixed $preview_images Preview image payload.
+	 * @return array
+	 */
+	private function normalize_preview_images( $preview_images ) {
+		$normalized = array();
+
+		if ( is_string( $preview_images ) ) {
+			$preview_images = array_map( 'trim', explode( ',', $preview_images ) );
+		}
+
+		if ( ! is_array( $preview_images ) ) {
+			return $normalized;
+		}
+
+		foreach ( $preview_images as $preview_image ) {
+			$thumb = '';
+			if ( is_array( $preview_image ) ) {
+				if ( isset( $preview_image['url'] ) ) {
+					$thumb = $preview_image['url'];
+				} elseif ( isset( $preview_image['src'] ) ) {
+					$thumb = $preview_image['src'];
+				}
+			} else {
+				$thumb = $preview_image;
+			}
+
+			if ( function_exists( 'lvjm_https_url' ) ) {
+				$thumb = lvjm_https_url( $thumb );
+			}
+
+			if ( '' !== $thumb ) {
+				$normalized[] = $thumb;
+			}
+		}
+
+		return array_values( array_unique( $normalized ) );
 	}
 }
