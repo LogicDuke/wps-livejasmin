@@ -485,6 +485,9 @@ function LVJM_pageImportVideos() {
                                         thumbs_urls: normalizedThumbs,
                                         thumbs_loading: false,
                                         thumbs_loaded: normalizedThumbs.length > 0,
+                                        thumbs_status: normalizedThumbs.length > 0 ? 'ok' : '',
+                                        partner_id: partner && partner.id ? partner.id : this.selectedPartner,
+                                        partner_locale: partner && partner.locale ? partner.locale : '',
                                         trailer_url: video.trailer_url,
                                         desc: video.desc,
                                         embed: video.embed,
@@ -680,6 +683,9 @@ function LVJM_pageImportVideos() {
                 hasThumbs: function (video) {
                     return video && Array.isArray(video.thumbs_urls) && video.thumbs_urls.length > 0;
                 },
+                shouldShowThumbsTab: function (video) {
+                    return !!(video && (this.hasThumbs(video) || video.thumb_url || video.thumbs_loading || video.thumbs_loaded));
+                },
                 getThumbsDebugReason: function (video) {
                     if (!video) {
                         return 'video_missing';
@@ -710,7 +716,7 @@ function LVJM_pageImportVideos() {
                         thumbs_urls_type: typeof thumbsUrls,
                         thumbs_urls_length: length,
                         grabbed: video ? video.grabbed : undefined,
-                        tab_visible: this.hasThumbs(video),
+                        tab_visible: this.shouldShowThumbsTab(video),
                         tab_hidden_reason: reason
                     });
                 },
@@ -718,17 +724,30 @@ function LVJM_pageImportVideos() {
                     if (!video) {
                         return;
                     }
+                    if (!Array.isArray(video.thumbs_urls)) {
+                        this.$set(video, 'thumbs_urls', []);
+                    }
                     if (video.thumbs_loading || video.thumbs_loaded || this.hasThumbs(video)) {
                         return;
                     }
                     this.$set(video, 'thumbs_loading', true);
                     this.logThumbDebug('thumbs-load-start:' + context, video);
+                    var partnerId = video.partner_id || this.selectedPartner;
+                    var partnerLocale = video.partner_locale || (this.selectedPartnerObject && this.selectedPartnerObject.locale ? this.selectedPartnerObject.locale : '');
+                    if (this.data && this.data.debugImporter) {
+                        console.log('[TMW-FIX] Thumbs payload', {
+                            video_id: video.id,
+                            partner_id: partnerId,
+                            locale: partnerLocale
+                        });
+                    }
                     this.$http.post(
                         LVJM_import_videos.ajax.url, {
                             action: 'lvjm_get_thumbnails',
                             nonce: LVJM_import_videos.ajax.nonce,
                             video_id: video.id,
-                            partner_id: this.selectedPartner
+                            partner_id: partnerId,
+                            locale: partnerLocale
                         }, {
                             emulateJSON: true
                         })
@@ -738,14 +757,26 @@ function LVJM_pageImportVideos() {
                             video.thumbs_urls = payload.thumbs_urls.filter(function (thumb) {
                                 return typeof thumb === 'string' && thumb.trim() !== '';
                             });
+                        } else if (payload && payload.thumbs_urls && typeof payload.thumbs_urls === 'string') {
+                            video.thumbs_urls = payload.thumbs_urls.split(',').filter(function (thumb) {
+                                return typeof thumb === 'string' && thumb.trim() !== '';
+                            });
+                        } else {
+                            video.thumbs_urls = [];
                         }
                         if (payload && payload.thumb_url && !video.thumb_url) {
                             video.thumb_url = payload.thumb_url;
                         }
+                        if (payload && payload.status) {
+                            video.thumbs_status = payload.status;
+                        }
                         video.thumbs_loaded = true;
                     }, (response) => {
                         video.thumbs_loaded = true;
-                        console.error(response);
+                        video.thumbs_status = 'error';
+                        if (this.data && this.data.debugImporter) {
+                            console.warn('[TMW-FIX] Thumbnail request failed', response);
+                        }
                     }).then(() => {
                         video.thumbs_loading = false;
                         this.logThumbDebug('thumbs-load-done:' + context, video);
