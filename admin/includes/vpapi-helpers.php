@@ -54,47 +54,36 @@ if ( ! function_exists( 'lvjm_mask_sensitive_payload' ) ) {
 	}
 }
 
-if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
+if ( ! function_exists( 'lvjm_build_vpapi_details_url' ) ) {
 	/**
-	 * Fetch VPAPI video details and cache them with transients.
+	 * Build VPAPI client details URL from the list feed URL.
 	 *
-	 * @param string $video_id   The video id.
-	 * @param string $partner_id The partner id.
-	 * @param string $locale     The locale if available.
-	 * @return array
+	 * @param string $video_id      The video id.
+	 * @param string $json_feed_url The list feed URL.
+	 * @param string $locale        Optional locale.
+	 * @return string
 	 */
-	function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' ) {
-		$video_id = (string) $video_id;
-		if ( '' === $video_id ) {
-			return array();
-		}
-
-		$transient_key = 'lvjm_vpapi_details_' . $video_id;
-		$cached        = get_transient( $transient_key );
-		if ( is_array( $cached ) ) {
-			return $cached;
-		}
-
-		$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
-		$json_feed_url         = isset( $saved_partner_options['json_feed_url'] ) ? $saved_partner_options['json_feed_url'] : '';
-		if ( '' === $json_feed_url ) {
-			return array();
+	function lvjm_build_vpapi_details_url( $video_id, $json_feed_url, $locale = '' ) {
+		$video_id     = (string) $video_id;
+		$json_feed_url = (string) $json_feed_url;
+		if ( '' === $video_id || '' === $json_feed_url ) {
+			return '';
 		}
 
 		$parsed_url = wp_parse_url( $json_feed_url );
 		if ( empty( $parsed_url['path'] ) ) {
-			return array();
+			return '';
 		}
 
 		$path = $parsed_url['path'];
 		if ( false !== strpos( $path, '/api/video-promotion/v1/list' ) ) {
-			$path = str_replace( '/api/video-promotion/v1/list', '/api/video-promotion/v1/details/' . rawurlencode( $video_id ), $path );
+			$path = str_replace( '/api/video-promotion/v1/list', '/api/video-promotion/v1/client/details/' . rawurlencode( $video_id ) . '/', $path );
 		} elseif ( preg_match( '#/video-promotion/v1/list/?$#', $path ) ) {
-			$path = preg_replace( '#/video-promotion/v1/list/?$#', '/video-promotion/v1/details/' . rawurlencode( $video_id ), $path );
+			$path = preg_replace( '#/video-promotion/v1/list/?$#', '/video-promotion/v1/client/details/' . rawurlencode( $video_id ) . '/', $path );
 		} elseif ( preg_match( '#/list/?$#', $path ) && false !== strpos( $path, 'video-promotion' ) ) {
-			$path = preg_replace( '#/list/?$#', '/details/' . rawurlencode( $video_id ), $path );
+			$path = preg_replace( '#/list/?$#', '/client/details/' . rawurlencode( $video_id ) . '/', $path );
 		} else {
-			return array();
+			return '';
 		}
 		$parsed_url['path'] = $path;
 
@@ -115,7 +104,80 @@ if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
 		$query    = ! empty( $query_params ) ? '?' . http_build_query( $query_params ) : '';
 		$fragment = isset( $parsed_url['fragment'] ) ? '#' . $parsed_url['fragment'] : '';
 
-		$details_url = "$scheme$user$pass$host$port$path$query$fragment";
+		return "$scheme$user$pass$host$port$path$query$fragment";
+	}
+}
+
+if ( ! function_exists( 'lvjm_vpapi_details_has_thumbs' ) ) {
+	/**
+	 * Check whether details payload has thumbnails.
+	 *
+	 * @param array $details_video The details video object.
+	 * @return bool
+	 */
+	function lvjm_vpapi_details_has_thumbs( $details_video ) {
+		if ( ! is_array( $details_video ) ) {
+			return false;
+		}
+
+		$keys = array(
+			'thumbsUrls',
+			'thumbUrls',
+			'thumbs_urls',
+			'thumb_urls',
+			'thumbnailUrls',
+			'thumbnailsUrls',
+			'thumbnails',
+			'thumbs',
+			'timelineThumbnails',
+			'previewImages',
+			'preview_images',
+			'thumbImage',
+			'thumb_image',
+		);
+
+		foreach ( $keys as $key ) {
+			if ( ! empty( $details_video[ $key ] ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
+if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
+	/**
+	 * Fetch VPAPI video details and cache them with transients.
+	 *
+	 * @param string $video_id   The video id.
+	 * @param string $partner_id The partner id.
+	 * @param string $locale     The locale if available.
+	 * @param bool   $force_refresh Force refresh bypassing transient cache.
+	 * @return array
+	 */
+	function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '', $force_refresh = false ) {
+		$video_id = (string) $video_id;
+		if ( '' === $video_id ) {
+			return array();
+		}
+
+		$transient_key = 'lvjm_vpapi_details_' . $video_id;
+		$cached        = $force_refresh ? false : get_transient( $transient_key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+		$json_feed_url         = isset( $saved_partner_options['json_feed_url'] ) ? $saved_partner_options['json_feed_url'] : '';
+		if ( '' === $json_feed_url ) {
+			return array();
+		}
+
+		$details_url = lvjm_build_vpapi_details_url( $video_id, $json_feed_url, $locale );
+		if ( '' === $details_url ) {
+			return array();
+		}
 
 		$args = array(
 			'timeout'   => 300,
@@ -153,7 +215,43 @@ if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
 			return array();
 		}
 
-		set_transient( $transient_key, $response_body, 12 * HOUR_IN_SECONDS );
+		$details_video = function_exists( 'lvjm_extract_vpapi_video_object' ) ? lvjm_extract_vpapi_video_object( $response_body ) : array();
+		$has_thumbs    = lvjm_vpapi_details_has_thumbs( $details_video );
+		$cache_ttl     = $has_thumbs ? 12 * HOUR_IN_SECONDS : 5 * MINUTE_IN_SECONDS;
+		set_transient( $transient_key, $response_body, $cache_ttl );
+
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			$masked_url    = lvjm_mask_sensitive_payload( $details_url );
+			$details_keys  = is_array( $response_body ) ? implode( ',', array_keys( $response_body ) ) : 'non-array';
+			$video_keys    = is_array( $details_video ) ? implode( ',', array_keys( $details_video ) ) : 'n/a';
+			$preview_value = array();
+			if ( isset( $details_video['previewImages'] ) ) {
+				$preview_value = $details_video['previewImages'];
+			} elseif ( isset( $details_video['preview_images'] ) ) {
+				$preview_value = $details_video['preview_images'];
+			}
+			if ( is_string( $preview_value ) ) {
+				$preview_value = array_filter( array_map( 'trim', explode( ',', $preview_value ) ) );
+			}
+			$preview_count = is_array( $preview_value ) ? count( $preview_value ) : 0;
+			$thumb_samples = array();
+			if ( is_array( $details_video ) ) {
+				$thumbs_urls  = lvjm_collect_vpapi_thumbs_urls( $details_video );
+				$thumb_samples = array_slice( $thumbs_urls, 0, 2 );
+			}
+			lvjm_importer_log(
+				'info',
+				sprintf(
+					'VPAPI details response url=%s status=%s keys=[%s] video_keys=[%s] previewImages_count=%d samples=%s',
+					$masked_url,
+					$status_code,
+					$details_keys,
+					$video_keys,
+					$preview_count,
+					empty( $thumb_samples ) ? 'none' : implode( ',', $thumb_samples )
+				)
+			);
+		}
 
 		return $response_body;
 	}
