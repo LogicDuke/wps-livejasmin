@@ -670,7 +670,7 @@ function LVJM_pageImportVideos() {
                     if (container) {
                         container.innerHTML = '';
                     }
-                    document.querySelectorAll('#video-preview-modal script[data-lvjm-embed-script="true"]').forEach(function (script) {
+                    document.querySelectorAll('script[data-lvjm-embed-script="true"]').forEach(function (script) {
                         script.remove();
                     });
                     this.previewLoading = false;
@@ -730,7 +730,7 @@ function LVJM_pageImportVideos() {
                         this.previewLoading = false;
                         this.previewError = 'Preview unavailable. You can still import this video.';
                     };
-                    container.appendChild(scriptEl);
+                    document.body.appendChild(scriptEl);
                 },
                 showThumb: function (thumb) {
                     this.expandedThumb = thumb;
