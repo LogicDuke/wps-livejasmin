@@ -8,6 +8,8 @@
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
+require_once dirname( __DIR__ ) . '/includes/vpapi-helpers.php';
+
 /**
  * Generic Item Class
  *
@@ -89,7 +91,10 @@ class LVJM_Item {
                 $thumb_url   = isset( $item['thumb_url'] ) ? (string) $item['thumb_url'] : '';
                 $thumbs_urls = isset( $item['thumbs_urls'] ) ? (array) $item['thumbs_urls'] : array();
 
-                if ( function_exists( 'lvjm_https_url' ) ) {
+                if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+                        $thumb_url = lvjm_normalize_remote_url( $thumb_url );
+                        $thumbs_urls = array_map( 'lvjm_normalize_remote_url', array_map( 'strval', $thumbs_urls ) );
+                } elseif ( function_exists( 'lvjm_https_url' ) ) {
                         $thumb_url = lvjm_https_url( $thumb_url );
                         $thumbs_urls = array_map( 'lvjm_https_url', array_map( 'strval', $thumbs_urls ) );
                 }

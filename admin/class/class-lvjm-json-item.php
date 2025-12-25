@@ -8,6 +8,8 @@
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
+require_once dirname( __DIR__ ) . '/includes/vpapi-helpers.php';
+
 /**
  * Json Item Class
  *
@@ -92,6 +94,15 @@ class LVJM_Json_Item {
 			if ( null !== $preview_images ) {
 				$this->item['thumbs_urls'] = $this->normalize_preview_images( $preview_images );
 			}
+		}
+
+		if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+			$this->item['thumb_url']   = lvjm_normalize_remote_url( $this->item['thumb_url'] );
+			$this->item['thumbs_urls'] = lvjm_normalize_remote_urls( $this->item['thumbs_urls'] );
+		}
+
+		if ( empty( $this->item['thumbs_urls'] ) && ! empty( $this->item['thumb_url'] ) ) {
+			$this->item['thumbs_urls'] = array( $this->item['thumb_url'] );
 		}
 
 		$this->item['trailer_url']  = $this->get_partner_feed_infos( 'feed_item_trailer_url', $partner_id, $feed_infos );
@@ -276,7 +287,9 @@ class LVJM_Json_Item {
 				$thumb = $preview_image;
 			}
 
-			if ( function_exists( 'lvjm_https_url' ) ) {
+			if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+				$thumb = lvjm_normalize_remote_url( $thumb );
+			} elseif ( function_exists( 'lvjm_https_url' ) ) {
 				$thumb = lvjm_https_url( $thumb );
 			}
 

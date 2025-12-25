@@ -54,6 +54,54 @@ if ( ! function_exists( 'lvjm_mask_sensitive_payload' ) ) {
 	}
 }
 
+if ( ! function_exists( 'lvjm_normalize_remote_url' ) ) {
+	/**
+	 * Normalize remote URLs from VPAPI payloads.
+	 *
+	 * @param string $url URL to normalize.
+	 * @return string
+	 */
+	function lvjm_normalize_remote_url( $url ) {
+		$url = str_replace( '\\/\\/', '//', (string) $url );
+		$url = str_replace( '\\/', '/', $url );
+		$url = trim( $url );
+
+		if ( '' === $url ) {
+			return '';
+		}
+
+		if ( 0 === strpos( $url, '//' ) ) {
+			$url = 'https:' . $url;
+		}
+
+		if ( function_exists( 'lvjm_https_url' ) ) {
+			$url = lvjm_https_url( $url );
+		}
+
+		return esc_url_raw( $url );
+	}
+}
+
+if ( ! function_exists( 'lvjm_normalize_remote_urls' ) ) {
+	/**
+	 * Normalize a list of remote URLs.
+	 *
+	 * @param array $urls URLs to normalize.
+	 * @return array
+	 */
+	function lvjm_normalize_remote_urls( $urls ) {
+		$normalized = array();
+		foreach ( (array) $urls as $url ) {
+			$normalized_url = lvjm_normalize_remote_url( $url );
+			if ( '' !== $normalized_url ) {
+				$normalized[] = $normalized_url;
+			}
+		}
+
+		return array_values( array_unique( $normalized ) );
+	}
+}
+
 if ( ! function_exists( 'lvjm_build_vpapi_details_url' ) ) {
 	/**
 	 * Build VPAPI client details URL from the list feed URL.
@@ -364,7 +412,7 @@ if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
 					} elseif ( is_string( $thumb ) ) {
 						$thumb_url = $thumb;
 					}
-					$thumb_url = lvjm_https_url( $thumb_url );
+					$thumb_url = lvjm_normalize_remote_url( $thumb_url );
 					if ( '' !== $thumb_url ) {
 						$thumbs_urls[] = $thumb_url;
 						if ( count( $sample_urls ) < 2 ) {
@@ -383,7 +431,7 @@ if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
 				} elseif ( is_string( $thumb ) ) {
 					$thumb_url = $thumb;
 				}
-				$thumb_url = lvjm_https_url( $thumb_url );
+				$thumb_url = lvjm_normalize_remote_url( $thumb_url );
 				if ( '' !== $thumb_url ) {
 					$thumbs_urls[] = $thumb_url;
 					if ( count( $sample_urls ) < 2 ) {

@@ -48,6 +48,10 @@ function lvjm_log_importer_video_debug( $context, $video ) {
 }
 
 function lvjm_normalize_vpapi_url( $url ) {
+    if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+        return lvjm_normalize_remote_url( $url );
+    }
+
     $url = str_replace( '\\/\\/', '//', (string) $url );
     $url = str_replace( '\\/', '/', $url );
     return function_exists( 'lvjm_https_url' ) ? lvjm_https_url( $url ) : $url;

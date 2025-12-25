@@ -18,6 +18,9 @@ if ( ! function_exists( 'lvjm_normalize_vpapi_csv_url' ) ) {
 	 * @return string
 	 */
 	function lvjm_normalize_vpapi_csv_url( $url ) {
+		if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+			return lvjm_normalize_remote_url( $url );
+		}
 		$url = str_replace( '\\/\\/', '//', (string) $url );
 		$url = str_replace( '\\/', '/', $url );
 		$url = lvjm_https_url( $url );
@@ -250,6 +253,10 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		if ( is_array( $csv_entry ) && ( ! empty( $csv_entry['thumbs_urls'] ) || ! empty( $csv_entry['thumb_url'] ) ) ) {
 			$thumbs_urls = isset( $csv_entry['thumbs_urls'] ) ? (array) $csv_entry['thumbs_urls'] : array();
 			$thumb_url   = isset( $csv_entry['thumb_url'] ) ? (string) $csv_entry['thumb_url'] : '';
+			if ( function_exists( 'lvjm_normalize_remote_urls' ) ) {
+				$thumbs_urls = lvjm_normalize_remote_urls( $thumbs_urls );
+				$thumb_url   = lvjm_normalize_remote_url( $thumb_url );
+			}
 			if ( empty( $thumbs_urls ) && '' !== $thumb_url ) {
 				$thumbs_urls = array( $thumb_url );
 			}
@@ -325,7 +332,11 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 
 		$thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
 		$thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) );
-		$thumb_url   = lvjm_https_url( $thumb_url );
+		if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+			$thumb_url = lvjm_normalize_remote_url( $thumb_url );
+		} else {
+			$thumb_url = lvjm_https_url( $thumb_url );
+		}
 
 		if ( empty( $thumbs_urls ) && '' === $thumb_url ) {
 			usleep( 200000 );
@@ -334,12 +345,23 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			if ( ! empty( $details_video ) ) {
 				$thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
 				$thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) );
-				$thumb_url   = lvjm_https_url( $thumb_url );
+				if ( function_exists( 'lvjm_normalize_remote_url' ) ) {
+					$thumb_url = lvjm_normalize_remote_url( $thumb_url );
+				} else {
+					$thumb_url = lvjm_https_url( $thumb_url );
+				}
 			}
+		}
+
+		if ( function_exists( 'lvjm_normalize_remote_urls' ) ) {
+			$thumbs_urls = lvjm_normalize_remote_urls( $thumbs_urls );
 		}
 
 		if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
 			$thumb_url = $thumbs_urls[0];
+		}
+		if ( empty( $thumbs_urls ) && '' !== $thumb_url ) {
+			$thumbs_urls = array( $thumb_url );
 		}
 
 		$payload = array(
@@ -349,6 +371,16 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			'source'      => 'vpapi',
 		);
 		error_log( sprintf( '[TMW-FIX] Thumbs source=VPAPI video_id=%s', $video_id ) );
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			lvjm_importer_log(
+				'info',
+				sprintf(
+					'[TMW-FIX] Thumbs payload video_id=%s payload=%s',
+					$video_id,
+					wp_json_encode( $payload )
+				)
+			);
+		}
 
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
 			$details_url = isset( $GLOBALS['lvjm_vpapi_last_details_url'] ) ? lvjm_mask_sensitive_payload( $GLOBALS['lvjm_vpapi_last_details_url'] ) : 'n/a';
