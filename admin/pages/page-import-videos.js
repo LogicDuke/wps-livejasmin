@@ -472,11 +472,27 @@ function LVJM_pageImportVideos() {
                             if (lodash.isEmpty(response.body.errors)) {
                                 this.searchedData = response.body.searched_data;
                                 lodash.each(response.body.videos, function (video) {
+                                    var rawThumbs = video.thumbs_urls;
+                                    if ((!rawThumbs || (Array.isArray(rawThumbs) && rawThumbs.length === 0) || (typeof rawThumbs === 'string' && !rawThumbs.length)) && typeof video.previewImages !== 'undefined') {
+                                        if (Array.isArray(video.previewImages)) {
+                                            rawThumbs = video.previewImages.map(function (preview) {
+                                                if (preview && typeof preview === 'object') {
+                                                    return preview.url || preview.src || '';
+                                                }
+                                                return preview;
+                                            });
+                                        } else {
+                                            rawThumbs = video.previewImages;
+                                        }
+                                    }
+                                    if ((!video.thumb_url || !video.thumb_url.length) && video.thumbImage) {
+                                        video.thumb_url = video.thumbImage;
+                                    }
                                     var normalizedThumbs = [];
-                                    if (Array.isArray(video.thumbs_urls)) {
-                                        normalizedThumbs = video.thumbs_urls;
-                                    } else if (typeof video.thumbs_urls === 'string' && video.thumbs_urls.length) {
-                                        normalizedThumbs = video.thumbs_urls.split(',');
+                                    if (Array.isArray(rawThumbs)) {
+                                        normalizedThumbs = rawThumbs;
+                                    } else if (typeof rawThumbs === 'string' && rawThumbs.length) {
+                                        normalizedThumbs = rawThumbs.split(',');
                                     }
                                     normalizedThumbs = normalizedThumbs.map(function (thumb) {
                                         return self.normalizeThumbUrl(thumb);
