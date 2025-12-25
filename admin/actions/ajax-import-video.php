@@ -127,6 +127,16 @@ function lvjm_import_video( $params = '' ) {
 		wp_die( 'Some parameters are missing!' );
 	}
 
+	if ( function_exists( 'WPSCORE' ) ) {
+		$video_id = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
+		WPSCORE()->write_log(
+			'info',
+			'[TMW-FIX] Import request received for video_id ' . $video_id . ' (partner: ' . $params['partner_id'] . ').',
+			__FILE__,
+			__LINE__
+		);
+	}
+
 	if ( empty( $params['video_infos']['thumb_url'] ) || empty( $params['video_infos']['trailer_url'] ) ) {
 		$video_id     = isset( $params['video_infos']['id'] ) ? $params['video_infos']['id'] : '';
 		$details      = lvjm_fetch_video_details_cached( $video_id, $params['partner_id'], isset( $params['locale'] ) ? (string) $params['locale'] : '' );
@@ -190,6 +200,14 @@ function lvjm_import_video( $params = '' ) {
 			if ( is_array( $tmp ) ) {
 				$more_data['embed']          = isset( $tmp['embed'] ) ? (string) $tmp['embed'] : '';
 				$more_data['performer_name'] = isset( $tmp['performer_name'] ) ? (string) $tmp['performer_name'] : '';
+				if ( empty( $more_data['embed'] ) && ! empty( $tmp['error_code'] ) && function_exists( 'WPSCORE' ) ) {
+					WPSCORE()->write_log(
+						'warning',
+						'[TMW-FIX] Import embed missing for video_id ' . ( isset( $params['video_infos']['id'] ) ? $params['video_infos']['id'] : '' ) . ' (error: ' . $tmp['error_code'] . ' - ' . $tmp['error_message'] . ').',
+						__FILE__,
+						__LINE__
+					);
+				}
 			}
 		} catch ( \Throwable $e ) {
 			if ( function_exists( 'WPSCORE' ) ) {

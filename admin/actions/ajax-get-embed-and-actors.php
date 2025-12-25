@@ -26,9 +26,31 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 		wp_die( 'Some parameters are missing!' );
 	}
 
+	if ( ! function_exists( 'lvjm_mask_secret' ) ) {
+		/**
+		 * Mask sensitive values for logging.
+		 *
+		 * @param string $value The secret value.
+		 * @return string
+		 */
+		function lvjm_mask_secret( $value ) {
+			$value = (string) $value;
+			$length = strlen( $value );
+			if ( 0 === $length ) {
+				return '';
+			}
+			if ( $length <= 8 ) {
+				return str_repeat( '*', $length );
+			}
+			return substr( $value, 0, 4 ) . str_repeat( '*', $length - 8 ) . substr( $value, -4 );
+		}
+	}
+
 	$output = array(
 		'performer_name' => '',
 		'embed'          => '',
+		'error_code'     => '',
+		'error_message'  => '',
 	);
 
 	$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
@@ -38,18 +60,31 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	$label_color           = str_replace( '#', '', xbox_get_field_value( 'lvjm-options', 'label-color' ) );
 	$client_ip             = '90.90.90.90';
 	$api_url               = 'https://pt.ptawe.com/api/video-promotion/v1/details/' . $params['video_id'] . '?clientIp=' . $client_ip . '&primaryColor=' . $primary_color . '&labelColor=' . $label_color . '&psid=' . $psid . '&accessKey=' . $access_key;
+	$masked_access_key     = lvjm_mask_secret( $access_key );
+	$log_api_url           = $access_key ? str_replace( $access_key, $masked_access_key, $api_url ) : $api_url;
 	$args                  = array(
 		'timeout'   => 30,
 		'sslverify' => false,
 	);
 
+	if ( function_exists( 'WPSCORE' ) ) {
+		WPSCORE()->write_log(
+			'info',
+			'[TMW-FIX] LVJM preview request for video_id ' . $params['video_id'] . ' (URL: ' . $log_api_url . ').',
+			__FILE__,
+			__LINE__
+		);
+	}
+
 	$response = wp_remote_get( $api_url, $args );
 
 	if ( is_wp_error( $response ) ) {
+		$output['error_code']    = 'wp_error';
+		$output['error_message'] = $response->get_error_message();
 		if ( function_exists( 'WPSCORE' ) ) {
 			WPSCORE()->write_log(
 				'warning',
-				'[LVJM] VPAPI request failed for video_id ' . $params['video_id'] . '. Error: ' . $response->get_error_message() . '. URL: ' . $api_url,
+				'[TMW-FIX] VPAPI request failed for video_id ' . $params['video_id'] . '. Error: ' . $response->get_error_message() . '. URL: ' . $log_api_url,
 				__FILE__,
 				__LINE__
 			);
@@ -61,18 +96,39 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 		return $output;
 	}
 	$container_id    = 'lvjm-player-' . $params['video_id'];
-	$response_body   = json_decode( wp_remote_retrieve_body( $response ), true );
+	$status_code     = wp_remote_retrieve_response_code( $response );
+	$response_raw    = wp_remote_retrieve_body( $response );
+	$response_body   = json_decode( $response_raw, true );
     // Use a responsive container for the player instead of fixed width/height.
     // Setting aspect-ratio to 16/9 and 100% width makes the embed responsive while
     // preserving the maximum width of 640px for backward compatibility.
     $embed_container = '<div class="player" data-awe-container-id="' . $container_id . '" style="aspect-ratio:16/9;width:100%;"></div>';
 
-	if ( ! isset( $response_body['data'], $response_body['data']['playerEmbedScript'] ) ) {
+	if ( ! is_array( $response_body ) ) {
+		$output['error_code']    = 'invalid_json';
+		$output['error_message'] = 'VPAPI returned non-JSON content (HTTP ' . $status_code . ').';
 		if ( function_exists( 'WPSCORE' ) ) {
-			$status_code = wp_remote_retrieve_response_code( $response );
 			WPSCORE()->write_log(
 				'warning',
-				'[LVJM] Missing playerEmbedScript for video_id ' . $params['video_id'] . ' (HTTP ' . $status_code . '). URL: ' . $api_url . '. Body: ' . substr( wp_remote_retrieve_body( $response ), 0, 500 ),
+				'[TMW-FIX] VPAPI response not JSON for video_id ' . $params['video_id'] . ' (HTTP ' . $status_code . '). URL: ' . $log_api_url . '. Body: ' . substr( $response_raw, 0, 500 ),
+				__FILE__,
+				__LINE__
+			);
+		}
+		if ( $ajax_call ) {
+			wp_send_json( $output );
+			wp_die();
+		}
+		return $output;
+	}
+
+	if ( ! isset( $response_body['data'], $response_body['data']['playerEmbedScript'] ) ) {
+		$output['error_code']    = 'missing_embed';
+		$output['error_message'] = 'VPAPI response missing player embed (HTTP ' . $status_code . ').';
+		if ( function_exists( 'WPSCORE' ) ) {
+			WPSCORE()->write_log(
+				'warning',
+				'[TMW-FIX] Missing playerEmbedScript for video_id ' . $params['video_id'] . ' (HTTP ' . $status_code . '). URL: ' . $log_api_url . '. Body: ' . substr( $response_raw, 0, 500 ),
 				__FILE__,
 				__LINE__
 			);
@@ -99,6 +155,8 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	$output       = array(
 		'performer_name' => lvjm_get_performer_name_by_id( $response_body['data']['performerId'] ),
 		'embed'          => $embed_container . $embed_script,
+		'error_code'     => '',
+		'error_message'  => '',
 	);
 	if ( ! $ajax_call ) {
 		return $output;

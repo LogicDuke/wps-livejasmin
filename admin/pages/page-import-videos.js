@@ -115,6 +115,7 @@ function LVJM_pageImportVideos() {
                 currentVideo: '',
                 currentVideoUrl: '',
                 currentVideoEmbed: '',
+                previewError: '',
                 expandedThumb: '',
                 videoTab: 'data',
 
@@ -559,6 +560,7 @@ function LVJM_pageImportVideos() {
                     this.currentVideo = video;
                     this.currentVideoUrl = video.video_url ? video.video_url : null;
                     this.currentVideoEmbed = video.embed ? video.embed : null;
+                    this.previewError = '';
                     this.currentVideo.index = index;
                     this.expandedThumb = '';
                     this.activateVideoTab();
@@ -856,6 +858,7 @@ function LVJM_pageImportVideos() {
 
                 // load the video embedder when video modal is shown
                 jQuery('body').on('show.bs.modal', '.modal#video-preview-modal', function (e) {
+                    self.previewError = '';
 
                     self.$http.post(
                         LVJM_import_videos.ajax.url, {
@@ -869,12 +872,16 @@ function LVJM_pageImportVideos() {
                         if (! self.currentVideo.actors) {
                             self.currentVideo.actors = response.body.performer_name;
                         }
-                        if ( ! self.currentVideoEmbed ) {
+                        if ( response.body.error_code ) {
+                            self.previewError = response.body.error_message ? response.body.error_message : 'Preview unavailable. You can still import this video.';
+                        }
+                        if ( ! self.currentVideoEmbed && response.body.embed ) {
                             self.currentVideoEmbed = response.body.embed;
                         }
                         // success callback
                     }, (response) => {
                         // error callback
+                        self.previewError = 'Preview unavailable. You can still import this video.';
                         console.error(response);
                     }).then( function() {
                     });
@@ -885,6 +892,7 @@ function LVJM_pageImportVideos() {
                     self.currentVideoUrl = '';
                     self.currentVideoEmbed = '';
                     self.expandedThumb = '';
+                    self.previewError = '';
                 });
 
                 jQuery('body').on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
