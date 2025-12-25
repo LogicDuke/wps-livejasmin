@@ -299,7 +299,7 @@ function lvjm_search_videos( $params = '' ) {
 
             $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
             $thumbs_urls = lvjm_normalize_thumb_urls( $thumbs_urls );
-            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) ) );
+            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) ) );
             if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
                 $thumb_url = $thumbs_urls[0];
             }

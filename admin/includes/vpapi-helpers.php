@@ -248,7 +248,7 @@ if ( ! function_exists( 'lvjm_collect_vpapi_thumbs_urls' ) ) {
 		$thumbs_urls = array();
 		$matched_keys = array();
 		$sample_urls  = array();
-		$thumbs_keys  = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbnailUrls', 'thumbnailsUrls', 'thumbnails', 'thumbs', 'timelineThumbnails' );
+		$thumbs_keys  = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbnailUrls', 'thumbnailsUrls', 'thumbnails', 'thumbs', 'timelineThumbnails', 'previewImages', 'preview_images' );
 		foreach ( $thumbs_keys as $thumbs_key ) {
 			if ( ! isset( $details[ $thumbs_key ] ) ) {
 				continue;
