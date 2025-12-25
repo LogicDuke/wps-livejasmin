@@ -425,6 +425,9 @@ function lvjm_import_videos_page() {
 																						<div v-else class="text-center">
 																							<img class="img-responsive" style="width:100%" v-bind:src="currentVideo.thumb_url">
 																						</div>
+																						<div v-if="previewError" class="alert alert-warning text-center margin-top-10 margin-bottom-0" role="alert">
+																							<p><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> {{previewError}}</p>
+																						</div>
 																					</div>
 																				</div>
 																				<div class="row padding-top-15">
