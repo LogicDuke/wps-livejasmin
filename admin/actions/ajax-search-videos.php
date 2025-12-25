@@ -219,6 +219,69 @@ function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' )
     return $response_body;
 }
 
+function lvjm_extract_vpapi_video_object( $details ) {
+    if ( ! is_array( $details ) ) {
+        return array();
+    }
+
+    $wrappers = array( 'data', 'video', 'item' );
+    foreach ( $wrappers as $wrapper ) {
+        if ( isset( $details[ $wrapper ] ) && is_array( $details[ $wrapper ] ) ) {
+            return $details[ $wrapper ];
+        }
+    }
+
+    if ( isset( $details['items'][0] ) && is_array( $details['items'][0] ) ) {
+        return $details['items'][0];
+    }
+
+    return $details;
+}
+
+function lvjm_https_url( $url ) {
+    $url = trim( (string) $url );
+    if ( '' === $url ) {
+        return '';
+    }
+    return set_url_scheme( $url, 'https' );
+}
+
+function lvjm_collect_vpapi_thumbs_urls( $details ) {
+    $thumbs_urls = array();
+    if ( isset( $details['thumbsUrls'] ) && is_array( $details['thumbsUrls'] ) ) {
+        foreach ( $details['thumbsUrls'] as $thumb_url ) {
+            $thumb_url = lvjm_https_url( $thumb_url );
+            if ( '' !== $thumb_url ) {
+                $thumbs_urls[] = $thumb_url;
+            }
+        }
+    } elseif ( isset( $details['thumbs'] ) && is_array( $details['thumbs'] ) ) {
+        foreach ( $details['thumbs'] as $thumb ) {
+            $thumb_url = '';
+            if ( is_array( $thumb ) ) {
+                $thumb_url = isset( $thumb['url'] ) ? $thumb['url'] : ( isset( $thumb['src'] ) ? $thumb['src'] : '' );
+            } elseif ( is_string( $thumb ) ) {
+                $thumb_url = $thumb;
+            }
+            $thumb_url = lvjm_https_url( $thumb_url );
+            if ( '' !== $thumb_url ) {
+                $thumbs_urls[] = $thumb_url;
+            }
+        }
+    }
+
+    return array_values( array_unique( $thumbs_urls ) );
+}
+
+function lvjm_get_vpapi_detail_value( $details, $keys, $default = '' ) {
+    foreach ( (array) $keys as $key ) {
+        if ( isset( $details[ $key ] ) && '' !== $details[ $key ] ) {
+            return $details[ $key ];
+        }
+    }
+    return $default;
+}
+
 function lvjm_search_videos( $params = '' ) {
     $ajax_call = '' === $params;
 
@@ -246,7 +309,9 @@ function lvjm_search_videos( $params = '' ) {
     if ( $is_performer_csv ) {
         $match            = lvjm_find_model_video_ids( $performer );
         $vpapi_index      = lvjm_load_vpapi_master_index();
-        $existing_ids     = lvjm_get_partner_existing_ids( isset( $params['partner']['id'] ) ? $params['partner']['id'] : '' );
+        $partner_id       = isset( $params['partner']['id'] ) ? $params['partner']['id'] : '';
+        $locale           = isset( $params['partner']['locale'] ) ? $params['partner']['locale'] : ( isset( $params['locale'] ) ? $params['locale'] : '' );
+        $existing_ids     = lvjm_get_partner_existing_ids( $partner_id );
         $existing_lookup  = array_fill_keys( $existing_ids, true );
         $video_ids        = isset( $match['video_ids'] ) ? $match['video_ids'] : array();
         $performer_name   = isset( $match['model_name'] ) && '' !== $match['model_name'] ? $match['model_name'] : $performer;
@@ -254,7 +319,7 @@ function lvjm_search_videos( $params = '' ) {
         $limit            = isset( $params['limit'] ) ? intval( $params['limit'] ) : 60;
         $limit            = min( 60, max( 0, $limit ) );
         $added            = 0;
-        $thumb_url        = plugin_dir_url( dirname( __DIR__, 2 ) . '/wps-livejasmin.php' ) . 'admin/assets/img/loading-thumb.gif';
+        $loading_thumb_url = plugin_dir_url( dirname( __DIR__, 2 ) . '/wps-livejasmin.php' ) . 'admin/assets/img/loading-thumb.gif';
         $video_ids        = array_values( array_unique( array_map( 'strval', $video_ids ) ) );
 
         if ( function_exists( 'WPSCORE' ) ) {
@@ -271,6 +336,49 @@ function lvjm_search_videos( $params = '' ) {
             }
             $detail = isset( $vpapi_index[ $video_id ] ) ? $vpapi_index[ $video_id ] : array();
             $actors = ! empty( $detail['model_name'] ) ? $detail['model_name'] : $performer_label;
+            $details_payload = lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale );
+            $details_video   = lvjm_extract_vpapi_video_object( $details_payload );
+
+            if ( empty( $details_video ) ) {
+                $detail_keys = is_array( $details_payload ) ? implode( ',', array_keys( $details_payload ) ) : 'non-array';
+                $message     = '[TMW-FIX] VPAPI details missing for video_id ' . $video_id . ' (keys: ' . $detail_keys . ').';
+                if ( function_exists( 'WPSCORE' ) ) {
+                    WPSCORE()->write_log( 'warning', $message, __FILE__, __LINE__ );
+                } elseif ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    error_log( $message );
+                }
+            }
+
+            $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
+            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumb' ) ) );
+            if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
+                $thumb_url = $thumbs_urls[0];
+            }
+            if ( '' === $thumb_url && isset( $details_video['thumbs'][0] ) ) {
+                $thumb_url = is_array( $details_video['thumbs'][0] )
+                    ? lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video['thumbs'][0], array( 'url', 'src' ) ) )
+                    : lvjm_https_url( $details_video['thumbs'][0] );
+            }
+            if ( '' === $thumb_url ) {
+                $thumb_url = $loading_thumb_url;
+            }
+
+            $trailer_url  = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'trailerUrl', 'trailer_url', 'trailer' ) ) );
+            $tracking_url = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'trackingUrl', 'tracking_url' ) ) );
+            $video_url    = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'videoUrl', 'video_url', 'url' ) ) );
+            $duration     = lvjm_get_vpapi_detail_value( $details_video, array( 'duration', 'length' ), 0 );
+            $quality      = lvjm_get_vpapi_detail_value( $details_video, array( 'quality' ) );
+            $is_hd        = lvjm_get_vpapi_detail_value( $details_video, array( 'isHd', 'is_hd', 'hd' ), false );
+            $description  = lvjm_get_vpapi_detail_value( $details_video, array( 'description', 'desc' ) );
+            if ( is_string( $is_hd ) ) {
+                $is_hd = filter_var( $is_hd, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
+                if ( null === $is_hd ) {
+                    $is_hd = false;
+                }
+            } else {
+                $is_hd = (bool) $is_hd;
+            }
+
             $videos[] = array(
                 'id'               => $video_id,
                 'title'            => isset( $detail['title'] ) ? $detail['title'] : '',
@@ -279,18 +387,18 @@ function lvjm_search_videos( $params = '' ) {
                 'actors_names'     => $performer_label,
                 'actors_img'       => '',
                 'categories_names' => '',
-                'duration'         => 0,
+                'duration'         => is_numeric( $duration ) ? (int) $duration : 0,
                 'thumb_url'        => $thumb_url,
-                'thumbs_urls'      => array(),
-                'trailer_url'      => '',
-                'tracking_url'     => '',
-                'quality'          => '',
-                'isHd'             => false,
+                'thumbs_urls'      => $thumbs_urls,
+                'trailer_url'      => $trailer_url,
+                'tracking_url'     => $tracking_url,
+                'quality'          => $quality,
+                'isHd'             => $is_hd,
                 'uploader'         => '',
-                'video_url'        => '',
-                'url'              => '',
+                'video_url'        => $video_url,
+                'url'              => $video_url,
                 'checked'          => false,
-                'desc'             => '',
+                'desc'             => $description,
                 'embed'            => '',
             );
             ++$added;
