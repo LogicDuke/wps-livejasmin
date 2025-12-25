@@ -8,6 +8,26 @@
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
+if ( ! function_exists( 'lvjm_mask_secret' ) ) {
+	/**
+	 * Mask sensitive values for logging.
+	 *
+	 * @param string $value The secret value.
+	 * @return string
+	 */
+	function lvjm_mask_secret( $value ) {
+		$value  = (string) $value;
+		$length = strlen( $value );
+		if ( 0 === $length ) {
+			return '';
+		}
+		if ( $length <= 8 ) {
+			return str_repeat( '*', $length );
+		}
+		return substr( $value, 0, 4 ) . str_repeat( '*', $length - 8 ) . substr( $value, -4 );
+	}
+}
+
 /**
  * Get embed player and actors ids in Ajax or PHP call.
  *
@@ -24,26 +44,6 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 
 	if ( ! isset( $params['video_id'] ) ) {
 		wp_die( 'Some parameters are missing!' );
-	}
-
-	if ( ! function_exists( 'lvjm_mask_secret' ) ) {
-		/**
-		 * Mask sensitive values for logging.
-		 *
-		 * @param string $value The secret value.
-		 * @return string
-		 */
-		function lvjm_mask_secret( $value ) {
-			$value = (string) $value;
-			$length = strlen( $value );
-			if ( 0 === $length ) {
-				return '';
-			}
-			if ( $length <= 8 ) {
-				return str_repeat( '*', $length );
-			}
-			return substr( $value, 0, 4 ) . str_repeat( '*', $length - 8 ) . substr( $value, -4 );
-		}
 	}
 
 	$output = array(
@@ -65,6 +65,10 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	$args                  = array(
 		'timeout'   => 30,
 		'sslverify' => false,
+		'headers'   => array(
+			'User-Agent' => 'Mozilla/5.0 (WordPress; LVJM Importer)',
+			'Accept'     => 'application/json,text/plain,*/*',
+		),
 	);
 
 	if ( function_exists( 'WPSCORE' ) ) {
