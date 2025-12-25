@@ -115,6 +115,7 @@ function LVJM_pageImportVideos() {
                 currentVideo: '',
                 currentVideoUrl: '',
                 currentVideoEmbed: '',
+                previewLoading: false,
                 previewError: '',
                 expandedThumb: '',
                 videoTab: 'data',
@@ -561,6 +562,11 @@ function LVJM_pageImportVideos() {
                     this.currentVideoUrl = video.video_url ? video.video_url : null;
                     this.currentVideoEmbed = video.embed ? video.embed : null;
                     this.previewError = '';
+                    if (this.currentVideoEmbed) {
+                        this.schedulePreviewRender();
+                    } else {
+                        this.clearPreviewEmbed();
+                    }
                     this.currentVideo.index = index;
                     this.expandedThumb = '';
                     this.activateVideoTab();
@@ -625,6 +631,11 @@ function LVJM_pageImportVideos() {
                     this.currentVideo = this.videos[prevIndex];
                     this.currentVideoUrl = this.videos[prevIndex].video_url ? this.videos[prevIndex].video_url : null;
                     this.currentVideoEmbed = this.videos[prevIndex].embed ? this.videos[prevIndex].embed : null;
+                    if (this.currentVideoEmbed) {
+                        this.schedulePreviewRender();
+                    } else {
+                        this.clearPreviewEmbed();
+                    }
                     this.currentVideo.index = prevIndex;
                     this.expandedThumb = '';
                     this.activateVideoTab();
@@ -639,9 +650,87 @@ function LVJM_pageImportVideos() {
                     this.currentVideo = this.videos[nextIndex];
                     this.currentVideoUrl = this.videos[nextIndex].video_url ? this.videos[nextIndex].video_url : null;
                     this.currentVideoEmbed = this.videos[nextIndex].embed ? this.videos[nextIndex].embed : null;
+                    if (this.currentVideoEmbed) {
+                        this.schedulePreviewRender();
+                    } else {
+                        this.clearPreviewEmbed();
+                    }
                     this.currentVideo.index = nextIndex;
                     this.expandedThumb = '';
                     this.activateVideoTab();
+                },
+                schedulePreviewRender: function () {
+                    var self = this;
+                    self.$nextTick(function () {
+                        self.renderPreviewEmbed();
+                    });
+                },
+                clearPreviewEmbed: function () {
+                    var container = this.$refs.videoPreviewEmbed;
+                    if (container) {
+                        container.innerHTML = '';
+                    }
+                    document.querySelectorAll('#video-preview-modal script[data-lvjm-embed-script="true"]').forEach(function (script) {
+                        script.remove();
+                    });
+                    this.previewLoading = false;
+                },
+                isAllowedEmbedScriptSrc: function (src) {
+                    if (!src) {
+                        return false;
+                    }
+                    try {
+                        var url = new URL(src, window.location.href);
+                        return url.hostname === 'tpdwm.com' || url.hostname.endsWith('.tpdwm.com');
+                    } catch (error) {
+                        return false;
+                    }
+                },
+                renderPreviewEmbed: function () {
+                    var container = this.$refs.videoPreviewEmbed;
+                    this.clearPreviewEmbed();
+                    if (!container || !this.currentVideoEmbed) {
+                        return;
+                    }
+                    if (this.siteIsHttps && !this.selectedPartnerObject.filters.https) {
+                        return;
+                    }
+
+                    var temp = document.createElement('div');
+                    temp.innerHTML = this.currentVideoEmbed;
+                    var embedContainer = temp.querySelector('.player[data-awe-container-id]');
+                    var embedScript = temp.querySelector('script[src]');
+
+                    if (embedContainer) {
+                        container.appendChild(embedContainer);
+                    }
+
+                    if (!embedScript || !embedScript.getAttribute('src')) {
+                        this.previewLoading = false;
+                        return;
+                    }
+
+                    var src = embedScript.getAttribute('src');
+                    if (!this.isAllowedEmbedScriptSrc(src)) {
+                        this.previewLoading = false;
+                        this.previewError = 'Preview unavailable. You can still import this video.';
+                        return;
+                    }
+
+                    this.previewLoading = true;
+                    var scriptEl = document.createElement('script');
+                    scriptEl.src = src;
+                    scriptEl.async = true;
+                    scriptEl.defer = true;
+                    scriptEl.setAttribute('data-lvjm-embed-script', 'true');
+                    scriptEl.onload = () => {
+                        this.previewLoading = false;
+                    };
+                    scriptEl.onerror = () => {
+                        this.previewLoading = false;
+                        this.previewError = 'Preview unavailable. You can still import this video.';
+                    };
+                    container.appendChild(scriptEl);
                 },
                 showThumb: function (thumb) {
                     this.expandedThumb = thumb;
@@ -859,6 +948,11 @@ function LVJM_pageImportVideos() {
                 // load the video embedder when video modal is shown
                 jQuery('body').on('show.bs.modal', '.modal#video-preview-modal', function (e) {
                     self.previewError = '';
+                    if (self.currentVideoEmbed) {
+                        self.schedulePreviewRender();
+                    } else {
+                        self.clearPreviewEmbed();
+                    }
 
                     self.$http.post(
                         LVJM_import_videos.ajax.url, {
@@ -876,15 +970,21 @@ function LVJM_pageImportVideos() {
                           self.previewError = response.body.error_message
                             ? response.body.error_message
                             : 'Preview unavailable. You can still import this video.';
+                          self.currentVideoEmbed = '';
+                          self.clearPreviewEmbed();
+                          return;
                         }
 
-                        if (!self.currentVideoEmbed && response.body && response.body.embed) {
+                        if (response.body && response.body.embed) {
                           self.currentVideoEmbed = response.body.embed;
+                          self.schedulePreviewRender();
                         }
                         // success callback
                     }, (response) => {
                         // error callback
                         self.previewError = 'Preview unavailable. You can still import this video.';
+                        self.currentVideoEmbed = '';
+                        self.clearPreviewEmbed();
                         console.error(response);
                     }).then( function() {
                     });
@@ -896,6 +996,7 @@ function LVJM_pageImportVideos() {
                     self.currentVideoEmbed = '';
                     self.expandedThumb = '';
                     self.previewError = '';
+                    self.clearPreviewEmbed();
                 });
 
                 jQuery('body').on('shown.bs.tab', 'a[data-toggle="tab"]', function (e) {
@@ -903,9 +1004,15 @@ function LVJM_pageImportVideos() {
                         self.currentVideoUrl = '';
                         self.currentVideoEmbed = '';
                         self.expandedThumb = '';
+                        self.clearPreviewEmbed();
                     } else {
                         self.currentVideoUrl = self.currentVideo.video_url;
                         self.currentVideoEmbed = self.currentVideo.embed;
+                        if (self.currentVideoEmbed) {
+                            self.schedulePreviewRender();
+                        } else {
+                            self.clearPreviewEmbed();
+                        }
                     }
                 });
             },

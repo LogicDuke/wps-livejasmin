@@ -491,6 +491,23 @@
   padding: 0 15px 15px;
 }
 
+#wp-script #video-preview-modal .video-preview-embed {
+  position: relative;
+  background: #000;
+}
+
+#wp-script #video-preview-modal .video-preview-embed__container {
+  width: 100%;
+}
+
+#wp-script #video-preview-modal .video-preview-embed__spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+}
+
 #wp-script #video-preview-modal textarea {
   margin-bottom: 15px;
 }

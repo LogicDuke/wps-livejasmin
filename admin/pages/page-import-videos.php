@@ -423,7 +423,13 @@ function lvjm_import_videos_page() {
 																							</div>
 																						</div>
 																						<div v-else class="text-center">
-																							<img class="img-responsive" style="width:100%" v-bind:src="currentVideo.thumb_url">
+																							<div v-if="currentVideoEmbed" class="video-preview-embed">
+																								<div ref="videoPreviewEmbed" class="video-preview-embed__container"></div>
+																								<div v-if="previewLoading" class="video-preview-embed__spinner" aria-live="polite">
+																									<i class="fa fa-spinner fa-pulse fa-3x" aria-hidden="true"></i>
+																								</div>
+																							</div>
+																							<img v-else class="img-responsive" style="width:100%" v-bind:src="currentVideo.thumb_url">
 																						</div>
 																						<div v-if="previewError" class="alert alert-warning text-center margin-top-10 margin-bottom-0" role="alert">
 																							<p><i class="fa fa-exclamation-triangle" aria-hidden="true"></i> {{previewError}}</p>
