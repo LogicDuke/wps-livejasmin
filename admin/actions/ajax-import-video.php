@@ -179,8 +179,29 @@ function lvjm_import_video( $params = '' ) {
 	if ( is_wp_error( $post_id ) ) {
 		$output = -1;
 	} else {
-		// add embed and actors.
-		$more_data                       = lvjm_get_embed_and_actors( array( 'video_id' => $params['video_infos']['id'] ) );
+		// add embed and actors (never let a VPAPI/embed issue break imports).
+		$more_data = array(
+			'embed'          => '',
+			'performer_name' => '',
+		);
+
+		try {
+			$tmp = lvjm_get_embed_and_actors( array( 'video_id' => $params['video_infos']['id'] ) );
+			if ( is_array( $tmp ) ) {
+				$more_data['embed']          = isset( $tmp['embed'] ) ? (string) $tmp['embed'] : '';
+				$more_data['performer_name'] = isset( $tmp['performer_name'] ) ? (string) $tmp['performer_name'] : '';
+			}
+		} catch ( \Throwable $e ) {
+			if ( function_exists( 'WPSCORE' ) ) {
+				WPSCORE()->write_log(
+					'warning',
+					'[LVJM] Embed fetch exception for video_id ' . ( isset( $params['video_infos']['id'] ) ? $params['video_infos']['id'] : '' ) . ': ' . $e->getMessage(),
+					__FILE__,
+					__LINE__
+				);
+			}
+		}
+
 		$params['video_infos']['embed']  = $more_data['embed'];
 		$params['video_infos']['actors'] = empty( $params['video_infos']['actors'] ) ? $more_data['performer_name'] : $params['video_infos']['actors'];
 
