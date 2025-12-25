@@ -2,10 +2,16 @@
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
 /**
- * Search for videos in Ajax or PHP call, now supporting multi-category straight searches.
+ * Search for videos in Ajax or PHP call, now supporting performer CSV searches.
  */
+function lvjm_normalize_performer_name( $name ) {
+    $normalized = strtolower( trim( (string) $name ) );
+    $normalized = str_replace( ' ', '', $normalized );
+    return preg_replace( '/[^a-z0-9]/', '', $normalized );
+}
+
 function lvjm_find_model_video_ids( $performer_query ) {
-    $performer_query = strtolower( trim( (string) $performer_query ) );
+    $performer_query = lvjm_normalize_performer_name( $performer_query );
     if ( '' === $performer_query ) {
         return array(
             'model_name' => '',
@@ -15,6 +21,8 @@ function lvjm_find_model_video_ids( $performer_query ) {
 
     $file_path = dirname( __DIR__, 2 ) . '/data/models_with_video_ids.csv';
     if ( ! file_exists( $file_path ) ) {
+        // CSV missing: log for debugging.
+        error_log( '[TMW-FIX] models_with_video_ids.csv is missing at ' . $file_path );
         return array(
             'model_name' => '',
             'video_ids'  => array(),
@@ -23,14 +31,14 @@ function lvjm_find_model_video_ids( $performer_query ) {
 
     $handle = fopen( $file_path, 'r' );
     if ( false === $handle ) {
+        // CSV unreadable: log for debugging.
+        error_log( '[TMW-FIX] Unable to read models_with_video_ids.csv at ' . $file_path );
         return array(
             'model_name' => '',
             'video_ids'  => array(),
         );
     }
 
-    $exact_match   = array();
-    $partial_match = array();
     $is_header     = true;
 
     while ( false !== ( $row = fgetcsv( $handle ) ) ) {
@@ -38,24 +46,17 @@ function lvjm_find_model_video_ids( $performer_query ) {
             $is_header = false;
             continue;
         }
-        if ( empty( $row[0] ) || empty( $row[1] ) ) {
+        if ( empty( $row[0] ) || empty( $row[2] ) ) {
             continue;
         }
         $model_name     = trim( (string) $row[0] );
-        $model_name_lc  = strtolower( $model_name );
-        $video_ids_raw  = (string) $row[1];
+        $model_name_lc  = lvjm_normalize_performer_name( $model_name );
+        $video_ids_raw  = (string) $row[2];
         $video_ids_list = array_filter( array_map( 'trim', preg_split( '/\s*\|\s*/', $video_ids_raw ) ) );
 
         if ( $model_name_lc === $performer_query ) {
-            $exact_match = array(
-                'model_name' => $model_name,
-                'video_ids'  => $video_ids_list,
-            );
-            break;
-        }
-
-        if ( empty( $partial_match ) && false !== strpos( $model_name_lc, $performer_query ) ) {
-            $partial_match = array(
+            fclose( $handle );
+            return array(
                 'model_name' => $model_name,
                 'video_ids'  => $video_ids_list,
             );
@@ -63,14 +64,6 @@ function lvjm_find_model_video_ids( $performer_query ) {
     }
 
     fclose( $handle );
-
-    if ( ! empty( $exact_match ) ) {
-        return $exact_match;
-    }
-
-    if ( ! empty( $partial_match ) ) {
-        return $partial_match;
-    }
 
     return array(
         'model_name' => '',
@@ -88,11 +81,15 @@ function lvjm_load_vpapi_master_index() {
     $index     = array();
     $file_path = dirname( __DIR__, 2 ) . '/data/vpapi_master.csv';
     if ( ! file_exists( $file_path ) ) {
+        // CSV missing: log for debugging.
+        error_log( '[TMW-FIX] vpapi_master.csv is missing at ' . $file_path );
         return $index;
     }
 
     $handle = fopen( $file_path, 'r' );
     if ( false === $handle ) {
+        // CSV unreadable: log for debugging.
+        error_log( '[TMW-FIX] Unable to read vpapi_master.csv at ' . $file_path );
         return $index;
     }
 
@@ -233,8 +230,8 @@ function lvjm_search_videos( $params = '' ) {
     $errors = array();
     $videos = array();
 
-    $is_multi_straight = isset( $params['multi_category_search'] ) && $params['multi_category_search'] === '1';
-    $performer         = isset( $params['performer'] ) ? sanitize_text_field( (string) $params['performer'] ) : '';
+    $performer_raw     = isset( $params['performer'] ) ? (string) $params['performer'] : '';
+    $performer         = sanitize_text_field( $performer_raw );
     $category_id       = '';
     if ( isset( $params['category_id'] ) ) {
         $category_id = (string) $params['category_id'];
@@ -244,7 +241,7 @@ function lvjm_search_videos( $params = '' ) {
         $category_id = (string) $params['category'];
     }
 
-    $is_performer_csv = $is_multi_straight && '' !== $performer && 'all_straight' === $category_id;
+    $is_performer_csv = '' !== $performer && 'all_straight' === $category_id;
 
     if ( $is_performer_csv ) {
         $match            = lvjm_find_model_video_ids( $performer );
@@ -253,9 +250,12 @@ function lvjm_search_videos( $params = '' ) {
         $existing_lookup  = array_fill_keys( $existing_ids, true );
         $video_ids        = isset( $match['video_ids'] ) ? $match['video_ids'] : array();
         $performer_name   = isset( $match['model_name'] ) && '' !== $match['model_name'] ? $match['model_name'] : $performer;
+        $performer_label  = '' !== trim( $performer_raw ) ? trim( $performer_raw ) : $performer_name;
         $limit            = isset( $params['limit'] ) ? intval( $params['limit'] ) : 60;
         $limit            = min( 60, max( 0, $limit ) );
         $added            = 0;
+        $thumb_url        = plugin_dir_url( dirname( __DIR__, 2 ) . '/wps-livejasmin.php' ) . 'admin/assets/img/loading-thumb.gif';
+        $video_ids        = array_values( array_unique( array_map( 'strval', $video_ids ) ) );
 
         if ( function_exists( 'WPSCORE' ) ) {
             WPSCORE()->write_log( 'info', '[TMW-FIX] Performer CSV search for ' . $performer_name . '.', __FILE__, __LINE__ );
@@ -270,29 +270,39 @@ function lvjm_search_videos( $params = '' ) {
                 continue;
             }
             $detail = isset( $vpapi_index[ $video_id ] ) ? $vpapi_index[ $video_id ] : array();
-            $actors = ! empty( $detail['model_name'] ) ? $detail['model_name'] : $performer_name;
+            $actors = ! empty( $detail['model_name'] ) ? $detail['model_name'] : $performer_label;
             $videos[] = array(
-                'id'           => $video_id,
-                'title'        => isset( $detail['title'] ) ? $detail['title'] : '',
-                'tags'         => isset( $detail['tags'] ) ? $detail['tags'] : '',
-                'actors'       => $actors,
-                'duration'     => 0,
-                'thumb_url'    => '',
-                'thumbs_urls'  => array(),
-                'trailer_url'  => '',
-                'tracking_url' => '',
-                'quality'      => '',
-                'isHd'         => false,
-                'uploader'     => '',
-                'video_url'    => '',
-                'checked'      => false,
-                'desc'         => '',
-                'embed'        => '',
+                'id'               => $video_id,
+                'title'            => isset( $detail['title'] ) ? $detail['title'] : '',
+                'tags'             => isset( $detail['tags'] ) ? $detail['tags'] : '',
+                'actors'           => $actors,
+                'actors_names'     => $performer_label,
+                'actors_img'       => '',
+                'categories_names' => '',
+                'duration'         => 0,
+                'thumb_url'        => $thumb_url,
+                'thumbs_urls'      => array(),
+                'trailer_url'      => '',
+                'tracking_url'     => '',
+                'quality'          => '',
+                'isHd'             => false,
+                'uploader'         => '',
+                'video_url'        => '',
+                'url'              => '',
+                'checked'          => false,
+                'desc'             => '',
+                'embed'            => '',
             );
             ++$added;
             if ( $added >= $limit ) {
                 break;
             }
+        }
+
+        if ( empty( $match['model_name'] ) ) {
+            $errors[] = 'No matching performer found in the CSV.';
+        } elseif ( empty( $videos ) ) {
+            $errors[] = 'No videos available after filtering imported/removed IDs.';
         }
 
         if ( $ajax_call ) {
@@ -302,7 +312,7 @@ function lvjm_search_videos( $params = '' ) {
                     'errors'        => $errors,
                     'searched_data' => array(
                         'mode'      => 'performer_csv',
-                        'performer' => $performer_name,
+                        'performer' => $performer_label,
                         'count'     => count( $videos ),
                     ),
                 )
@@ -313,22 +323,9 @@ function lvjm_search_videos( $params = '' ) {
         return $videos;
     }
 
-    if ( $is_multi_straight ) {
-        $straight_categories = ['straight1', 'straight2', 'straight3'];
-
-        foreach ( $straight_categories as $cat ) {
-            $params['category'] = $cat;
-            $search_videos = new LVJM_Search_Videos( $params );
-
-            if ( ! $search_videos->has_errors() ) {
-                $videos = array_merge( $videos, $search_videos->get_videos() );
-            }
-        }
-    } else {
-        $search_videos = new LVJM_Search_Videos( $params );
-        if ( ! $search_videos->has_errors() ) {
-            $videos = $search_videos->get_videos();
-        }
+    $search_videos = new LVJM_Search_Videos( $params );
+    if ( ! $search_videos->has_errors() ) {
+        $videos = $search_videos->get_videos();
     }
 
     // Performer filtering
