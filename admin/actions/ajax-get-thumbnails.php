@@ -34,7 +34,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		}
 
 		$list_cache_key = 'lvjm_vpapi_list_thumbs_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
-		$cache_key = 'lvjm_vpapi_thumbs_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
+		$cache_key = 'lvjm_vpapi_thumbs_v2_' . sanitize_key( $partner_id ) . '_' . sanitize_key( $video_id ) . '_' . sanitize_key( $locale );
 		$use_cache = true;
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER && '' !== $force ) {
 			$use_cache = false;
@@ -96,7 +96,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			$details_keys  = is_array( $details_payload ) ? implode( ',', array_keys( $details_payload ) ) : 'non-array';
 			$data_keys     = ( isset( $details_payload['data'] ) && is_array( $details_payload['data'] ) ) ? implode( ',', array_keys( $details_payload['data'] ) ) : 'n/a';
 			$video_keys    = ( isset( $details_payload['data']['video'] ) && is_array( $details_payload['data']['video'] ) ) ? implode( ',', array_keys( $details_payload['data']['video'] ) ) : 'n/a';
-			$thumb_keys    = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbs', 'thumbnails', 'thumbnailUrls', 'thumbnailsUrls' );
+			$thumb_keys    = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls', 'thumbs', 'thumbnails', 'thumbnailUrls', 'thumbnailsUrls', 'previewImages', 'preview_images', 'thumbImage', 'thumb_image' );
 			$thumb_present = array();
 			foreach ( $thumb_keys as $thumb_key ) {
 				if ( isset( $details_video[ $thumb_key ] ) ) {
@@ -107,7 +107,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			lvjm_importer_log(
 				'info',
 				sprintf(
-					'Thumbs debug video_id=%s partner_id=%s locale=%s helpers=%s status=%s details_empty=%s details_keys=[%s] data_keys=[%s] data_video_keys=[%s] thumb_keys=[%s]',
+					'[TMW-FIX] Thumbs debug video_id=%s partner_id=%s locale=%s helpers=%s status=%s details_empty=%s details_keys=[%s] data_keys=[%s] data_video_keys=[%s] thumb_keys=[%s]',
 					$video_id,
 					$partner_id,
 					$locale,
@@ -137,7 +137,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 		}
 
                 $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
-                $thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) );
+                $thumb_url   = lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb', 'thumbImage', 'thumb_image' ) );
                 $thumb_url   = lvjm_https_url( $thumb_url );
 
 		if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
@@ -155,7 +155,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
                         lvjm_importer_log(
                                 'info',
                                 sprintf(
-                                        'Thumbs response video_id=%s partner_id=%s locale=%s details_url=%s thumb_url=%s thumbs_samples=%s',
+                        '[TMW-FIX] Thumbs response video_id=%s partner_id=%s locale=%s details_url=%s thumb_url=%s thumbs_samples=%s',
                                         $video_id,
                                         $partner_id,
                                         $locale,
@@ -175,7 +175,7 @@ if ( ! function_exists( 'lvjm_get_video_thumbnails' ) ) {
 			lvjm_importer_log(
 				'info',
 				sprintf(
-					'Thumbs response status=%s count=%d',
+					'[TMW-FIX] Thumbs response status=%s count=%d',
 					$payload['status'],
 					count( $thumbs_urls )
 				)

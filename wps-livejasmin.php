@@ -5,7 +5,7 @@
  * Description: Import LiveJasmin livecam embed videos in your WordPress posts
  * Author: WP-Script
  * Author URI: https://www.wp-script.com
- * Version: 1.3.2
+ * Version: 1.3.3
  * Text Domain: wps-livejasmin
  * Domain Path: /languages
  *
