@@ -953,6 +953,9 @@ function LVJM_pageImportVideos() {
                     } else {
                         self.clearPreviewEmbed();
                     }
+                    if (self.data && self.data.debugImporter && self.searchedData && self.searchedData.mode === 'performer_csv') {
+                        console.log('[TMW-FIX] Performer modal video object', self.currentVideo);
+                    }
 
                     self.$http.post(
                         LVJM_import_videos.ajax.url, {

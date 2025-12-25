@@ -17,6 +17,9 @@ define( 'LVJM_VERSION', '1.3.2' );
 define( 'LVJM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LVJM_URL', plugin_dir_url( __FILE__ ) );
 define( 'LVJM_FILE', __FILE__ );
+if ( ! defined( 'LVJM_DEBUG_IMPORTER' ) ) {
+	define( 'LVJM_DEBUG_IMPORTER', false );
+}
 
 /**
  * Navigation config
