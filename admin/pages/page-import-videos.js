@@ -872,11 +872,14 @@ function LVJM_pageImportVideos() {
                         if (! self.currentVideo.actors) {
                             self.currentVideo.actors = response.body.performer_name;
                         }
-                        if ( response.body.error_code ) {
-                            self.previewError = response.body.error_message ? response.body.error_message : 'Preview unavailable. You can still import this video.';
+                        if (response.body && response.body.error_code) {
+                          self.previewError = response.body.error_message
+                            ? response.body.error_message
+                            : 'Preview unavailable. You can still import this video.';
                         }
-                        if ( ! self.currentVideoEmbed && response.body.embed ) {
-                            self.currentVideoEmbed = response.body.embed;
+
+                        if (!self.currentVideoEmbed && response.body && response.body.embed) {
+                          self.currentVideoEmbed = response.body.embed;
                         }
                         // success callback
                     }, (response) => {
