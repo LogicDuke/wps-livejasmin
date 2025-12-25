@@ -469,12 +469,22 @@ function LVJM_pageImportVideos() {
                             if (lodash.isEmpty(response.body.errors)) {
                                 this.searchedData = response.body.searched_data;
                                 lodash.each(response.body.videos, function (video) {
+                                    var normalizedThumbs = [];
+                                    if (Array.isArray(video.thumbs_urls)) {
+                                        normalizedThumbs = video.thumbs_urls;
+                                    } else if (typeof video.thumbs_urls === 'string' && video.thumbs_urls.length) {
+                                        normalizedThumbs = video.thumbs_urls.split(',');
+                                    }
+                                    normalizedThumbs = normalizedThumbs.filter(function (thumb) {
+                                        return typeof thumb === 'string' && thumb.trim() !== '';
+                                    });
                                     videos.push({
                                         id: video.id,
                                         title: video.title,
                                         thumb_url: video.thumb_url,
-//                                        thumbs_urls: video.thumbs_urls.split(','),
-                                        thumbs_urls: video.thumbs_urls,
+                                        thumbs_urls: normalizedThumbs,
+                                        thumbs_loading: false,
+                                        thumbs_loaded: normalizedThumbs.length > 0,
                                         trailer_url: video.trailer_url,
                                         desc: video.desc,
                                         embed: video.embed,
@@ -569,6 +579,7 @@ function LVJM_pageImportVideos() {
                     }
                     this.currentVideo.index = index;
                     this.expandedThumb = '';
+                    this.logThumbDebug('setCurrentVideo', this.currentVideo);
                     this.activateVideoTab();
                 },
                 confirmVideoDeletion: function (video, index) {
@@ -614,6 +625,9 @@ function LVJM_pageImportVideos() {
                 },
                 setVideoTab: function (type) {
                     this.videoTab = type;
+                    if (type === 'thumbs') {
+                        this.ensureVideoThumbnails(this.currentVideo, 'tab-click');
+                    }
                 },
                 activateVideoTab: function () {
                     var self = this;
@@ -638,6 +652,8 @@ function LVJM_pageImportVideos() {
                     }
                     this.currentVideo.index = prevIndex;
                     this.expandedThumb = '';
+                    this.logThumbDebug('prevVideoModal', this.currentVideo);
+                    this.ensureVideoThumbnails(this.currentVideo, 'modal-prev');
                     this.activateVideoTab();
                 },
                 nextVideoModal: function (index) {
@@ -657,7 +673,83 @@ function LVJM_pageImportVideos() {
                     }
                     this.currentVideo.index = nextIndex;
                     this.expandedThumb = '';
+                    this.logThumbDebug('nextVideoModal', this.currentVideo);
+                    this.ensureVideoThumbnails(this.currentVideo, 'modal-next');
                     this.activateVideoTab();
+                },
+                hasThumbs: function (video) {
+                    return video && Array.isArray(video.thumbs_urls) && video.thumbs_urls.length > 0;
+                },
+                getThumbsDebugReason: function (video) {
+                    if (!video) {
+                        return 'video_missing';
+                    }
+                    if (typeof video.thumbs_urls === 'undefined') {
+                        return 'thumbs_urls_missing';
+                    }
+                    if (!Array.isArray(video.thumbs_urls)) {
+                        return 'thumbs_urls_not_array';
+                    }
+                    if (video.thumbs_urls.length === 0) {
+                        return 'thumbs_urls_empty';
+                    }
+                    return 'thumbs_ready';
+                },
+                logThumbDebug: function (context, video) {
+                    if (!this.data || !this.data.debugImporter) {
+                        return;
+                    }
+                    var thumbsUrls = video ? video.thumbs_urls : undefined;
+                    var length = Array.isArray(thumbsUrls) ? thumbsUrls.length : 0;
+                    var reason = this.getThumbsDebugReason(video);
+                    console.log('[TMW-FIX] Thumbs debug', {
+                        context: context,
+                        video_id: video ? video.id : undefined,
+                        thumb_url: video ? video.thumb_url : undefined,
+                        thumbs_urls_exists: typeof thumbsUrls !== 'undefined',
+                        thumbs_urls_type: typeof thumbsUrls,
+                        thumbs_urls_length: length,
+                        grabbed: video ? video.grabbed : undefined,
+                        tab_visible: this.hasThumbs(video),
+                        tab_hidden_reason: reason
+                    });
+                },
+                ensureVideoThumbnails: function (video, context) {
+                    if (!video) {
+                        return;
+                    }
+                    if (video.thumbs_loading || video.thumbs_loaded || this.hasThumbs(video)) {
+                        return;
+                    }
+                    this.$set(video, 'thumbs_loading', true);
+                    this.logThumbDebug('thumbs-load-start:' + context, video);
+                    this.$http.post(
+                        LVJM_import_videos.ajax.url, {
+                            action: 'lvjm_get_thumbnails',
+                            nonce: LVJM_import_videos.ajax.nonce,
+                            video_id: video.id,
+                            partner_id: this.selectedPartner
+                        }, {
+                            emulateJSON: true
+                        })
+                    .then((response) => {
+                        var payload = response.body && response.body.data ? response.body.data : response.body;
+                        if (payload && Array.isArray(payload.thumbs_urls)) {
+                            video.thumbs_urls = payload.thumbs_urls.filter(function (thumb) {
+                                return typeof thumb === 'string' && thumb.trim() !== '';
+                            });
+                        }
+                        if (payload && payload.thumb_url && !video.thumb_url) {
+                            video.thumb_url = payload.thumb_url;
+                        }
+                        video.thumbs_loaded = true;
+                    }, (response) => {
+                        video.thumbs_loaded = true;
+                        console.error(response);
+                    }).then(() => {
+                        video.thumbs_loading = false;
+                        this.logThumbDebug('thumbs-load-done:' + context, video);
+                    });
                 },
                 schedulePreviewRender: function () {
                     var self = this;
@@ -956,6 +1048,7 @@ function LVJM_pageImportVideos() {
                     if (self.data && self.data.debugImporter && self.searchedData && self.searchedData.mode === 'performer_csv') {
                         console.log('[TMW-FIX] Performer modal video object', self.currentVideo);
                     }
+                    self.ensureVideoThumbnails(self.currentVideo, 'modal-open');
 
                     self.$http.post(
                         LVJM_import_videos.ajax.url, {
