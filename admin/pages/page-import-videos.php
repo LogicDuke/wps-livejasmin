@@ -409,7 +409,7 @@ function lvjm_import_videos_page() {
 																	<div class="col-xs-12">
 																		<ul class="nav nav-tabs padding-top-15" role="tablist">
 																			<li class="active"><a href="#current-video-data" @click="setVideoTab('data')" id="tab-video-data" role="tab" data-toggle="tab"><i class="fa fa-youtube-play" aria-hidden="true"></i> <?php esc_html_e( 'Video data', 'lvjm_lang' ); ?></a></li>
-																			<li v-if="hasThumbs(currentVideo)"><a href="#current-video-thumbs" @click="setVideoTab('thumbs')" id="tab-video-thumbs" role="tab" data-toggle="tab"><i class="fa fa-th-large" aria-hidden="true"></i></span> <?php esc_html_e( 'Thumbnails', 'lvjm_lang' ); ?></a></li>
+																			<li v-if="shouldShowThumbsTab(currentVideo)"><a href="#current-video-thumbs" @click="setVideoTab('thumbs')" id="tab-video-thumbs" role="tab" data-toggle="tab"><i class="fa fa-th-large" aria-hidden="true"></i></span> <?php esc_html_e( 'Thumbnails', 'lvjm_lang' ); ?></a></li>
 																			<li v-if="currentVideo.trailer_url != ''"><a href="#current-video-trailer" @click="setVideoTab('trailer')" id="tab-video-trailer" role="tab" data-toggle="tab"><i class="fa fa-file-video-o" aria-hidden="true"></i></span> <?php esc_html_e( 'Trailer', 'lvjm_lang' ); ?></a></li>
 																		</ul>
 																		<div class="tab-content">
@@ -459,9 +459,15 @@ function lvjm_import_videos_page() {
 																				</div>
 																			</div>
 																			<div role="tabpanel" class="tab-pane" id="current-video-thumbs">
-																			<div v-if="hasThumbs(currentVideo)" class="row">
+																				<div v-if="currentVideo.thumbs_loading" class="row">
+																					<div class="col-xs-12 text-center padding-top-15 padding-bottom-15">
+																						<i class="fa fa-spinner fa-pulse" aria-hidden="true"></i>
+																						<?php esc_html_e( 'Loading thumbnails…', 'lvjm_lang' ); ?>
+																					</div>
+																				</div>
+																				<div v-else-if="hasThumbs(currentVideo)" class="row">
 																					<transition name="fade" mode="out-in">
-																						<div v-if="expandedThumb == ''" key="allThumbs"> 
+																						<div v-if="expandedThumb == ''" key="allThumbs">
 																							<div v-for="thumb in currentVideo.thumbs_urls" v-bind:key="thumb" class="col-xs-6 col-md-3 item">
 																								<img class="img-responsive thumbnail" v-bind:src="thumb" v-on:click="showThumb(thumb)">
 																							</div>
@@ -485,6 +491,11 @@ function lvjm_import_videos_page() {
 																						);
 																						?>
 																						</p>
+																					</div>
+																				</div>
+																				<div v-else class="row">
+																					<div class="col-xs-12 text-center padding-top-15 padding-bottom-15">
+																						<?php esc_html_e( 'No thumbnails available.', 'lvjm_lang' ); ?>
 																					</div>
 																				</div>
 																			</div>
