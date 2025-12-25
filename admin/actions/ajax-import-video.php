@@ -8,6 +8,107 @@
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
+if ( ! function_exists( 'lvjm_fetch_video_details_cached' ) ) {
+	/**
+	 * Fetch VPAPI video details and cache them with transients.
+	 *
+	 * @param string $video_id   The video id.
+	 * @param string $partner_id The partner id.
+	 * @param string $locale     The locale if available.
+	 * @return array
+	 */
+	function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' ) {
+		$video_id = (string) $video_id;
+		if ( '' === $video_id ) {
+			return array();
+		}
+
+		$transient_key = 'lvjm_vpapi_details_' . $video_id;
+		$cached        = get_transient( $transient_key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+		$json_feed_url         = isset( $saved_partner_options['json_feed_url'] ) ? $saved_partner_options['json_feed_url'] : '';
+		if ( '' === $json_feed_url ) {
+			return array();
+		}
+
+		$parsed_url = wp_parse_url( $json_feed_url );
+		if ( empty( $parsed_url['path'] ) ) {
+			return array();
+		}
+
+		$path = $parsed_url['path'];
+		if ( false !== strpos( $path, '/client/list' ) ) {
+			$path = str_replace( '/client/list', '/client/details/' . rawurlencode( $video_id ), $path );
+		} else {
+			$path = rtrim( $path, '/' ) . '/client/details/' . rawurlencode( $video_id );
+		}
+		$parsed_url['path'] = $path;
+
+		$scheme   = isset( $parsed_url['scheme'] ) ? $parsed_url['scheme'] . '://' : '';
+		$host     = isset( $parsed_url['host'] ) ? $parsed_url['host'] : '';
+		$port     = isset( $parsed_url['port'] ) ? ':' . $parsed_url['port'] : '';
+		$user     = isset( $parsed_url['user'] ) ? $parsed_url['user'] : '';
+		$pass     = isset( $parsed_url['pass'] ) ? ':' . $parsed_url['pass'] : '';
+		$pass     = ( $user || $pass ) ? "$pass@" : '';
+		$query    = isset( $parsed_url['query'] ) ? '?' . $parsed_url['query'] : '';
+		$fragment = isset( $parsed_url['fragment'] ) ? '#' . $parsed_url['fragment'] : '';
+
+		$details_url = "$scheme$user$pass$host$port$path$query$fragment";
+		if ( '' !== $locale ) {
+			$details_url .= ( false === strpos( $details_url, '?' ) ? '?' : '&' ) . 'locale=' . rawurlencode( $locale );
+		}
+
+		$args = array(
+			'timeout'   => 300,
+			'sslverify' => false,
+		);
+
+		$response = wp_remote_get( $details_url, $args );
+		if ( is_wp_error( $response ) ) {
+			return array();
+		}
+
+		$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $response_body ) ) {
+			return array();
+		}
+
+		set_transient( $transient_key, $response_body, 12 * HOUR_IN_SECONDS );
+
+		return $response_body;
+	}
+}
+
+if ( ! function_exists( 'lvjm_get_detail_value' ) ) {
+	/**
+	 * Retrieve the first non-empty value from details data.
+	 *
+	 * @param array $data The details data.
+	 * @param array $keys Keys to check in order.
+	 * @return string
+	 */
+	function lvjm_get_detail_value( $data, $keys ) {
+		foreach ( $keys as $key ) {
+			if ( ! isset( $data[ $key ] ) ) {
+				continue;
+			}
+			$value = $data[ $key ];
+			if ( is_array( $value ) ) {
+				$value = reset( $value );
+			}
+			$value = (string) $value;
+			if ( '' !== $value ) {
+				return $value;
+			}
+		}
+		return '';
+	}
+}
+
 /**
  * Import videos in Ajax or PHP call.
  *
@@ -24,6 +125,39 @@ function lvjm_import_video( $params = '' ) {
 
 	if ( ! isset( $params['partner_id'], $params['video_infos'], $params['status'], $params['feed_id'], $params['cat_s'], $params['cat_wp'] ) ) {
 		wp_die( 'Some parameters are missing!' );
+	}
+
+	if ( empty( $params['video_infos']['thumb_url'] ) || empty( $params['video_infos']['trailer_url'] ) ) {
+		$video_id     = isset( $params['video_infos']['id'] ) ? $params['video_infos']['id'] : '';
+		$details      = lvjm_fetch_video_details_cached( $video_id, $params['partner_id'], isset( $params['locale'] ) ? (string) $params['locale'] : '' );
+		$details_data = isset( $details['data'] ) && is_array( $details['data'] ) ? $details['data'] : $details;
+
+		if ( empty( $params['video_infos']['thumb_url'] ) ) {
+			$params['video_infos']['thumb_url'] = lvjm_get_detail_value(
+				$details_data,
+				array(
+					'thumb_url',
+					'thumbUrl',
+					'thumbnailUrl',
+					'thumb',
+					'previewUrl',
+					'preview',
+				)
+			);
+		}
+
+		if ( empty( $params['video_infos']['trailer_url'] ) ) {
+			$params['video_infos']['trailer_url'] = lvjm_get_detail_value(
+				$details_data,
+				array(
+					'trailer_url',
+					'trailerUrl',
+					'trailer',
+					'previewVideoUrl',
+					'videoTrailerUrl',
+				)
+			);
+		}
 	}
 
 	// get custom post type.
