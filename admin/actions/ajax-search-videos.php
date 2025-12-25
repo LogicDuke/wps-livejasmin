@@ -178,12 +178,24 @@ function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' )
     }
 
     $path = $parsed_url['path'];
-    if ( false !== strpos( $path, '/client/list' ) ) {
-        $path = str_replace( '/client/list', '/client/details/' . rawurlencode( $video_id ), $path );
+    if ( false !== strpos( $path, '/api/video-promotion/v1/list' ) ) {
+        $path = str_replace( '/api/video-promotion/v1/list', '/api/video-promotion/v1/details/' . rawurlencode( $video_id ), $path );
+    } elseif ( preg_match( '#/video-promotion/v1/list/?$#', $path ) ) {
+        $path = preg_replace( '#/video-promotion/v1/list/?$#', '/video-promotion/v1/details/' . rawurlencode( $video_id ), $path );
+    } elseif ( preg_match( '#/list/?$#', $path ) && false !== strpos( $path, 'video-promotion' ) ) {
+        $path = preg_replace( '#/list/?$#', '/details/' . rawurlencode( $video_id ), $path );
     } else {
-        $path = rtrim( $path, '/' ) . '/client/details/' . rawurlencode( $video_id );
+        return array();
     }
     $parsed_url['path'] = $path;
+
+    $query_params = array();
+    if ( isset( $parsed_url['query'] ) ) {
+        wp_parse_str( $parsed_url['query'], $query_params );
+    }
+    if ( '' !== $locale ) {
+        $query_params['locale'] = $locale;
+    }
 
     $scheme   = isset( $parsed_url['scheme'] ) ? $parsed_url['scheme'] . '://' : '';
     $host     = isset( $parsed_url['host'] ) ? $parsed_url['host'] : '';
@@ -191,13 +203,10 @@ function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' )
     $user     = isset( $parsed_url['user'] ) ? $parsed_url['user'] : '';
     $pass     = isset( $parsed_url['pass'] ) ? ':' . $parsed_url['pass'] : '';
     $pass     = ( $user || $pass ) ? "$pass@" : '';
-    $query    = isset( $parsed_url['query'] ) ? '?' . $parsed_url['query'] : '';
+    $query    = ! empty( $query_params ) ? '?' . http_build_query( $query_params ) : '';
     $fragment = isset( $parsed_url['fragment'] ) ? '#' . $parsed_url['fragment'] : '';
 
     $details_url = "$scheme$user$pass$host$port$path$query$fragment";
-    if ( '' !== $locale ) {
-        $details_url .= ( false === strpos( $details_url, '?' ) ? '?' : '&' ) . 'locale=' . rawurlencode( $locale );
-    }
 
     $args = array(
         'timeout'   => 300,
@@ -206,11 +215,25 @@ function lvjm_fetch_video_details_cached( $video_id, $partner_id, $locale = '' )
 
     $response = wp_remote_get( $details_url, $args );
     if ( is_wp_error( $response ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[TMW-FIX] VPAPI details request failed for ' . $details_url . ' (status: n/a).' );
+        }
+        return array();
+    }
+
+    $status_code = wp_remote_retrieve_response_code( $response );
+    if ( $status_code < 200 || $status_code >= 300 ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[TMW-FIX] VPAPI details request failed for ' . $details_url . ' (status: ' . $status_code . ').' );
+        }
         return array();
     }
 
     $response_body = json_decode( wp_remote_retrieve_body( $response ), true );
     if ( ! is_array( $response_body ) ) {
+        if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+            error_log( '[TMW-FIX] VPAPI details request failed for ' . $details_url . ' (status: ' . $status_code . ').' );
+        }
         return array();
     }
 
@@ -248,14 +271,18 @@ function lvjm_https_url( $url ) {
 
 function lvjm_collect_vpapi_thumbs_urls( $details ) {
     $thumbs_urls = array();
-    if ( isset( $details['thumbsUrls'] ) && is_array( $details['thumbsUrls'] ) ) {
-        foreach ( $details['thumbsUrls'] as $thumb_url ) {
-            $thumb_url = lvjm_https_url( $thumb_url );
-            if ( '' !== $thumb_url ) {
-                $thumbs_urls[] = $thumb_url;
+    $thumbs_keys = array( 'thumbsUrls', 'thumbUrls', 'thumbs_urls', 'thumb_urls' );
+    foreach ( $thumbs_keys as $thumbs_key ) {
+        if ( isset( $details[ $thumbs_key ] ) && is_array( $details[ $thumbs_key ] ) ) {
+            foreach ( $details[ $thumbs_key ] as $thumb_url ) {
+                $thumb_url = lvjm_https_url( $thumb_url );
+                if ( '' !== $thumb_url ) {
+                    $thumbs_urls[] = $thumb_url;
+                }
             }
         }
-    } elseif ( isset( $details['thumbs'] ) && is_array( $details['thumbs'] ) ) {
+    }
+    if ( isset( $details['thumbs'] ) && is_array( $details['thumbs'] ) ) {
         foreach ( $details['thumbs'] as $thumb ) {
             $thumb_url = '';
             if ( is_array( $thumb ) ) {
@@ -350,14 +377,9 @@ function lvjm_search_videos( $params = '' ) {
             }
 
             $thumbs_urls = lvjm_collect_vpapi_thumbs_urls( $details_video );
-            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumb' ) ) );
+            $thumb_url   = lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video, array( 'thumbUrl', 'thumb_url', 'thumbURL', 'thumb' ) ) );
             if ( '' === $thumb_url && ! empty( $thumbs_urls ) ) {
                 $thumb_url = $thumbs_urls[0];
-            }
-            if ( '' === $thumb_url && isset( $details_video['thumbs'][0] ) ) {
-                $thumb_url = is_array( $details_video['thumbs'][0] )
-                    ? lvjm_https_url( lvjm_get_vpapi_detail_value( $details_video['thumbs'][0], array( 'url', 'src' ) ) )
-                    : lvjm_https_url( $details_video['thumbs'][0] );
             }
             if ( '' === $thumb_url ) {
                 $thumb_url = $loading_thumb_url;
