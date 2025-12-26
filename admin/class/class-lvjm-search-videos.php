@@ -282,6 +282,53 @@ class LVJM_Search_Videos {
 			$suffix = ' ' . wp_json_encode( $context );
 		}
 		WPSCORE()->write_log( 'info', '[TMW-IMPORTER] ' . $message . $suffix, __FILE__, __LINE__ );
+		$line_suffix = $suffix;
+		$max_length  = 2000;
+		if ( strlen( $line_suffix ) > $max_length ) {
+			$line_suffix = substr( $line_suffix, 0, $max_length ) . '...';
+		}
+		$line = '[LVJM-DEBUG] ' . $message . $line_suffix;
+		error_log( $line );
+	}
+
+	/**
+	 * Clear performer-related caches when requested.
+	 *
+	 * @return void
+	 */
+	private function maybe_clear_performer_cache() {
+		if ( ! defined( 'LVJM_DEBUG_IMPORTER' ) || ! LVJM_DEBUG_IMPORTER ) {
+			return;
+		}
+		if ( ! is_admin() || ! wp_doing_ajax() ) {
+			return;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( ! isset( $_REQUEST['lvjm_clear_perf_cache'] ) ) {
+			return;
+		}
+		$clear = sanitize_text_field( wp_unslash( $_REQUEST['lvjm_clear_perf_cache'] ) );
+		if ( '1' !== $clear ) {
+			return;
+		}
+		global $wpdb;
+		$like_perf          = $wpdb->esc_like( '_transient_lvjm_perf_v2_' ) . '%';
+		$like_perf_timeout  = $wpdb->esc_like( '_transient_timeout_lvjm_perf_v2_' ) . '%';
+		$like_filter        = $wpdb->esc_like( '_transient_lvjm_vpapi_perf_filter_param' ) . '%';
+		$like_filter_timeout = $wpdb->esc_like( '_transient_timeout_lvjm_vpapi_perf_filter_param' ) . '%';
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+				$like_perf,
+				$like_perf_timeout,
+				$like_filter,
+				$like_filter_timeout
+			)
+		);
+		$this->debug_importer_log( 'Performer cache cleared via request flag.' );
 	}
 
 	/**
@@ -387,6 +434,37 @@ class LVJM_Search_Videos {
 	}
 
 	/**
+	 * Extract performer candidates from a feed item.
+	 *
+	 * @param array $item Feed item.
+	 * @return array Performer candidates.
+	 */
+	private function extract_performer_candidates_from_item( $item ) {
+		$item = (array) $item;
+		$keys = array(
+			'performerId',
+			'performer_id',
+			'uploaderId',
+			'performerName',
+			'performer_name',
+			'username',
+			'screenName',
+			'screen_name',
+			'modelName',
+			'model',
+			'performer',
+			'uploader',
+		);
+		$out  = array();
+		foreach ( $keys as $key ) {
+			if ( isset( $item[ $key ] ) && '' !== trim( (string) $item[ $key ] ) ) {
+				$out[] = (string) $item[ $key ];
+			}
+		}
+		return array_values( array_unique( $out ) );
+	}
+
+	/**
 	 * Build a feed url for performer searches.
 	 *
 	 * @param string $tag Tag value.
@@ -413,22 +491,6 @@ class LVJM_Search_Videos {
 		}
 		$parsed_url['query'] = http_build_query( $query );
 		return $this->unparse_url( $parsed_url );
-	}
-
-	/**
-	 * Extract performer id from a feed item.
-	 *
-	 * @param array $item Feed item.
-	 * @return string Performer id if available.
-	 */
-	private function extract_performer_id_from_item( $item ) {
-		$item = (array) $item;
-		foreach ( array( 'performerId', 'performer_id', 'performer', 'model', 'modelName', 'uploader', 'uploaderId' ) as $key ) {
-			if ( isset( $item[ $key ] ) ) {
-				return (string) $item[ $key ];
-			}
-		}
-		return '';
 	}
 
 	/**
@@ -498,7 +560,9 @@ class LVJM_Search_Videos {
 	 */
 	private function retrieve_performer_videos_from_json_feed() {
 		$performer_raw        = isset( $this->params['performer_id'] ) ? sanitize_text_field( (string) $this->params['performer_id'] ) : '';
-		$normalized_performer = $this->normalize_performer_id( $performer_raw );
+		$query_raw            = trim( (string) $performer_raw );
+		$query_is_numeric     = (bool) preg_match( '/^\d+$/', $query_raw );
+		$normalized_performer = $this->normalize_performer_id( $query_raw );
 		$tag_input            = isset( $this->params['cat_s'] ) ? sanitize_text_field( (string) $this->params['cat_s'] ) : '';
 
 		if ( '' === $normalized_performer ) {
@@ -516,10 +580,17 @@ class LVJM_Search_Videos {
 			return true;
 		}
 
+		$this->maybe_clear_performer_cache();
+
 		list( $tag_value, $orientation ) = $this->normalize_tag_and_orientation( $tag_input );
 		$tag_for_cache                  = '' !== $tag_value ? $tag_value : 'all';
-		// Cache key includes orientation + tag (or all) + normalized performer id.
-		$cache_key                      = 'lvjm_perf_v2_' . $orientation . '_' . $this->normalize_cache_component( $tag_for_cache ) . '_' . $normalized_performer;
+		$cache_key                      = sprintf(
+			'lvjm_perf_v2_%s_%s_%s_%s',
+			$orientation,
+			$this->normalize_cache_component( $tag_for_cache ),
+			$query_is_numeric ? 'id' : 'name',
+			$normalized_performer
+		);
 		$cached                         = get_transient( $cache_key );
 		if ( is_array( $cached ) && isset( $cached['videos'], $cached['searched_data'] ) ) {
 			$this->videos        = $cached['videos'];
@@ -568,6 +639,7 @@ class LVJM_Search_Videos {
 			array(
 				'search_mode'       => $this->params['search_mode'],
 				'performer_id'      => $performer_raw,
+				'query_type'        => $query_is_numeric ? 'numeric' : 'name',
 				'cat_s'             => $tag_input,
 				'sexualOrientation' => $orientation,
 			)
@@ -597,10 +669,10 @@ class LVJM_Search_Videos {
 
 		$cached_filter_param = get_transient( 'lvjm_vpapi_perf_filter_param_v2' );
 		if ( $cached_filter_param && 'none' !== $cached_filter_param ) {
-			$candidate_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $cached_filter_param, $performer_raw );
+			$candidate_url   = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $cached_filter_param, $performer_raw );
 			$attempted_urls[] = $candidate_url;
-			$response      = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
-			$body          = json_decode( wp_remote_retrieve_body( $response ), true );
+			$response        = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
+			$body            = json_decode( wp_remote_retrieve_body( $response ), true );
 			$this->log_feed_response( 'Performer cached filter probe.', $candidate_url, $response, $body );
 			$items = $this->get_feed_items_from_response( $body );
 			if ( ! empty( $items ) ) {
@@ -613,12 +685,12 @@ class LVJM_Search_Videos {
 			}
 		}
 
-		if ( false === $cached_filter_param ) {
+		if ( $query_is_numeric && false === $cached_filter_param ) {
 			foreach ( $filter_params as $filter_param ) {
-				$candidate_url  = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $filter_param, $performer_raw );
+				$candidate_url   = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $filter_param, $performer_raw );
 				$attempted_urls[] = $candidate_url;
-				$response       = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
-				$body           = json_decode( wp_remote_retrieve_body( $response ), true );
+				$response        = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
+				$body            = json_decode( wp_remote_retrieve_body( $response ), true );
 				$this->log_feed_response( 'Performer filter probe.', $candidate_url, $response, $body );
 				if ( is_wp_error( $response ) ) {
 					continue;
@@ -711,8 +783,22 @@ class LVJM_Search_Videos {
 			while ( false === $page_end ) {
 				$feed_item_data = $array_feed[ $current_item ];
 				++$scanned_items;
-				$performer_id   = $this->extract_performer_id_from_item( $feed_item_data );
-				if ( '' === $performer_id || $this->normalize_performer_id( $performer_id ) !== $normalized_performer ) {
+				$candidates = $this->extract_performer_candidates_from_item( $feed_item_data );
+				$matched    = false;
+				foreach ( $candidates as $candidate ) {
+					$candidate_raw = trim( (string) $candidate );
+					if ( '' === $candidate_raw ) {
+						continue;
+					}
+					if ( $query_is_numeric && ! preg_match( '/^\d+$/', $candidate_raw ) ) {
+						continue;
+					}
+					if ( $this->normalize_performer_id( $candidate_raw ) === $normalized_performer ) {
+						$matched = true;
+						break;
+					}
+				}
+				if ( ! $matched ) {
 					++$current_item;
 					if ( $current_item >= $count_total_feed_items ) {
 						$page_end = true;
