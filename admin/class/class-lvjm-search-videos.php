@@ -296,6 +296,36 @@ class LVJM_Search_Videos {
 	}
 
 	/**
+	 * Normalize a URL to https when possible.
+	 *
+	 * @param string $url URL.
+	 * @return string Normalized URL.
+	 */
+	private function normalize_https_url( $url ) {
+		$url = (string) $url;
+		if ( 0 === strpos( $url, 'http://' ) ) {
+			return 'https://' . substr( $url, 7 );
+		}
+		return $url;
+	}
+
+	/**
+	 * Normalize video URLs for output.
+	 *
+	 * @param array $video Video data.
+	 * @return array Normalized video data.
+	 */
+	private function normalize_video_urls( $video ) {
+		if ( isset( $video['thumb_url'] ) ) {
+			$video['thumb_url'] = $this->normalize_https_url( $video['thumb_url'] );
+		}
+		if ( isset( $video['thumbs_urls'] ) && is_array( $video['thumbs_urls'] ) ) {
+			$video['thumbs_urls'] = array_map( array( $this, 'normalize_https_url' ), $video['thumbs_urls'] );
+		}
+		return $video;
+	}
+
+	/**
 	 * Normalize cache component values.
 	 *
 	 * @param string $value Cache component.
@@ -363,12 +393,70 @@ class LVJM_Search_Videos {
 	 */
 	private function extract_performer_id_from_item( $item ) {
 		$item = (array) $item;
-		foreach ( array( 'performerId', 'performer_id', 'performer', 'uploader', 'model' ) as $key ) {
+		foreach ( array( 'performerId', 'performer_id', 'performer', 'model', 'modelName', 'uploader', 'uploaderId' ) as $key ) {
 			if ( isset( $item[ $key ] ) ) {
 				return (string) $item[ $key ];
 			}
 		}
 		return '';
+	}
+
+	/**
+	 * Extract feed items from a response body.
+	 *
+	 * @param array $response_body Response body.
+	 * @return array Feed items.
+	 */
+	private function get_feed_items_from_response( $response_body ) {
+		if ( ! is_array( $response_body ) || empty( $response_body['data'] ) ) {
+			return array();
+		}
+		if ( isset( $this->feed_infos->feed_item_path->node ) ) {
+			$root = $this->feed_infos->feed_item_path->node;
+			return isset( $response_body['data'][ $root ] ) ? (array) $response_body['data'][ $root ] : array();
+		}
+		if ( isset( $response_body['data']['videos'] ) ) {
+			return (array) $response_body['data']['videos'];
+		}
+		return (array) $response_body['data'];
+	}
+
+	/**
+	 * Log a feed response summary.
+	 *
+	 * @param string     $message Message prefix.
+	 * @param string     $url Feed URL.
+	 * @param array|WP_Error $response Response object.
+	 * @param array|null $response_body Parsed response body.
+	 * @return void
+	 */
+	private function log_feed_response( $message, $url, $response, $response_body ) {
+		if ( is_wp_error( $response ) ) {
+			$this->debug_importer_log(
+				$message,
+				array(
+					'url'   => $url,
+					'error' => $response->get_error_message(),
+				)
+			);
+			return;
+		}
+
+		$items       = $this->get_feed_items_from_response( $response_body );
+		$sample_keys = array();
+		if ( ! empty( $items ) ) {
+			$first_item  = (array) reset( $items );
+			$sample_keys = array_keys( $first_item );
+		}
+		$this->debug_importer_log(
+			$message,
+			array(
+				'url'         => $url,
+				'status'      => wp_remote_retrieve_response_code( $response ),
+				'count'       => count( $items ),
+				'sample_keys' => $sample_keys,
+			)
+		);
 	}
 
 	/**
@@ -400,6 +488,7 @@ class LVJM_Search_Videos {
 
 		list( $tag_value, $orientation ) = $this->normalize_tag_and_orientation( $tag_input );
 		$tag_for_cache                  = '' !== $tag_value ? $tag_value : 'all';
+		// Cache key includes orientation + tag (or all) + normalized performer id.
 		$cache_key                      = 'lvjm_perf_' . $orientation . '_' . $this->normalize_cache_component( $tag_for_cache ) . '_' . $normalized_performer;
 		$cached                         = get_transient( $cache_key );
 		if ( is_array( $cached ) && isset( $cached['videos'], $cached['searched_data'] ) ) {
@@ -438,45 +527,84 @@ class LVJM_Search_Videos {
 			$paged = $this->get_partner_feed_infos( $this->feed_infos->feed_paged->data );
 		}
 
+		$this->debug_importer_log(
+			'Performer search incoming params.',
+			array(
+				'search_mode'       => $this->params['search_mode'],
+				'performer_id'      => $performer_raw,
+				'cat_s'             => $tag_input,
+				'sexualOrientation' => $orientation,
+			)
+		);
+
 		$omit_tags = '' === $tag_value;
 		if ( $omit_tags ) {
 			$probe_url      = $this->build_feed_url_for_performer( $tag_value, $orientation, true );
 			$probe_response = wp_remote_get( '' !== $paged ? $probe_url . $paged . $current_page : $probe_url, $args );
 			$probe_body     = json_decode( wp_remote_retrieve_body( $probe_response ), true );
+			$this->log_feed_response( 'Performer probe without tags.', $probe_url, $probe_response, $probe_body );
+			$probe_items = $this->get_feed_items_from_response( $probe_body );
 			if ( is_wp_error( $probe_response )
-				|| ! is_array( $probe_body )
-				|| empty( $probe_body['data'] )
-				|| empty( $probe_body['data']['videos'] ) ) {
+				|| empty( $probe_items ) ) {
 				$tag_value = '69';
 				$omit_tags = false;
+				$this->debug_importer_log( 'Performer probe required tags fallback.', array( 'tags' => $tag_value ) );
 			}
 		}
 
-		$filter_params = array( 'performerId', 'performer', 'model', 'uploader', 'search', 'q' );
+		$filter_params = array( 'performerId', 'performer_id', 'performer', 'model', 'modelName', 'uploader', 'uploaderId', 'q', 'search' );
 		$filter_used   = '';
 		$root_feed_url = '';
 		$first_body    = null;
+		$attempted_urls = array();
 
-		foreach ( $filter_params as $filter_param ) {
-			$candidate_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $filter_param, $performer_raw );
+		$cached_filter_param = get_transient( 'lvjm_vpapi_perf_filter_param' );
+		if ( $cached_filter_param && 'none' !== $cached_filter_param ) {
+			$candidate_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $cached_filter_param, $performer_raw );
+			$attempted_urls[] = $candidate_url;
 			$response      = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
 			$body          = json_decode( wp_remote_retrieve_body( $response ), true );
-			if ( is_wp_error( $response ) ) {
-				continue;
-			}
-			if ( is_array( $body ) && ! empty( $body['data']['videos'] ) ) {
-				$filter_used = $filter_param;
+			$this->log_feed_response( 'Performer cached filter probe.', $candidate_url, $response, $body );
+			$items = $this->get_feed_items_from_response( $body );
+			if ( ! empty( $items ) ) {
+				$filter_used   = $cached_filter_param;
 				$root_feed_url = $candidate_url;
-				$first_body  = $body;
-				break;
+				$first_body    = $body;
+			} else {
+				$cached_filter_param = false;
 			}
+		}
+
+		if ( false === $cached_filter_param ) {
+			foreach ( $filter_params as $filter_param ) {
+				$candidate_url  = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $filter_param, $performer_raw );
+				$attempted_urls[] = $candidate_url;
+				$response       = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
+				$body           = json_decode( wp_remote_retrieve_body( $response ), true );
+				$this->log_feed_response( 'Performer filter probe.', $candidate_url, $response, $body );
+				if ( is_wp_error( $response ) ) {
+					continue;
+				}
+				$items = $this->get_feed_items_from_response( $body );
+				if ( ! empty( $items ) ) {
+					$filter_used   = $filter_param;
+					$root_feed_url = $candidate_url;
+					$first_body    = $body;
+					break;
+				}
+			}
+			set_transient( 'lvjm_vpapi_perf_filter_param', '' !== $filter_used ? $filter_used : 'none', DAY_IN_SECONDS );
 		}
 
 		if ( '' === $root_feed_url ) {
 			$root_feed_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags );
+			$attempted_urls[] = $root_feed_url;
+			$this->debug_importer_log( 'Performer fallback scan enabled (no server-side filter param).' );
 		}
 
 		$pages_fetched = 0;
+		$scanned_items = 0;
+		$max_scan_items = 1200;
 		while ( false === $end ) {
 			if ( 0 === $pages_fetched && is_array( $first_body ) ) {
 				$response_body = $first_body;
@@ -490,6 +618,7 @@ class LVJM_Search_Videos {
 				}
 
 				$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+				$this->log_feed_response( 'Performer feed page.', $this->feed_url, $response, $response_body );
 			}
 
 			if ( isset( $response_body['status'] ) && 'ERROR' === $response_body['status'] ) {
@@ -522,12 +651,17 @@ class LVJM_Search_Videos {
 
 			while ( false === $page_end ) {
 				$feed_item_data = $array_feed[ $current_item ];
+				++$scanned_items;
 				$performer_id   = $this->extract_performer_id_from_item( $feed_item_data );
 				if ( '' === $performer_id || $this->normalize_performer_id( $performer_id ) !== $normalized_performer ) {
 					++$current_item;
 					if ( $current_item >= $count_total_feed_items ) {
 						$page_end = true;
 						++$current_page;
+					}
+					if ( $scanned_items >= $max_scan_items ) {
+						$end = true;
+						$page_end = true;
 					}
 					continue;
 				}
@@ -536,7 +670,8 @@ class LVJM_Search_Videos {
 				$feed_item->init( $this->params, $this->feed_infos );
 				if ( $feed_item->is_valid() ) {
 					if ( ! in_array( $feed_item->get_id(), (array) $existing_ids['partner_all_videos_ids'], true ) ) {
-						$array_valid_videos[] = (array) $feed_item->get_data_for_json( $count_valid_feed_items );
+						$video_data           = (array) $feed_item->get_data_for_json( $count_valid_feed_items );
+						$array_valid_videos[] = $this->normalize_video_urls( $video_data );
 						$videos_details[]     = array(
 							'id'       => $feed_item->get_id(),
 							'response' => 'Success',
@@ -571,6 +706,10 @@ class LVJM_Search_Videos {
 						$end = true;
 					}
 				}
+				if ( $scanned_items >= $max_scan_items ) {
+					$end = true;
+					$page_end = true;
+				}
 				++$current_item;
 			}
 			++$pages_fetched;
@@ -603,9 +742,20 @@ class LVJM_Search_Videos {
 				'orientation'   => $orientation,
 				'filter_param'  => $filter_used,
 				'pages_fetched' => $pages_fetched,
+				'scanned_items' => $scanned_items,
 				'results'       => count( $this->videos ),
 			)
 		);
+
+		if ( empty( $this->videos ) ) {
+			$this->debug_importer_log(
+				'Performer search yielded no results.',
+				array(
+					'filter_param'   => '' !== $filter_used ? $filter_used : 'fallback_scan',
+					'attempted_urls' => array_slice( $attempted_urls, -3 ),
+				)
+			);
+		}
 
 		return true;
 	}

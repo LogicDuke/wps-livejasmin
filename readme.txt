@@ -11,6 +11,10 @@
 * Russian (100%): 101/101 lines translated
 * Spanish (100%): 101/101 lines translated
 
+== Debugging ==
+To enable importer debug logs, define `LVJM_DEBUG_IMPORTER` as `true` in `wp-config.php`.
+Performer searches cache the detected VPAPI filter parameter in `lvjm_vpapi_perf_filter_param` (1 day) and matched results in `lvjm_perf_{orientation}_{tag-or-all}_{normalized_performer}` (6 hours).
+
 == Changelog ==
 = 1.3.2 = 2025-07-28
 * Fixed: Fix translation files issues that could prevent the plugin from installing and work properly in de, it, ru and zh languages
@@ -84,4 +88,3 @@
 
 = 1.0.0 = 2019-06-12
 * Added: Initial release
-
