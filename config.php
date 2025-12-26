@@ -29,6 +29,11 @@ self::$config['nav'] = array(
 	'lvjm-options' => array(
 		'slug' => 'lvjm-options',
 	),
+	'lvjm-tools'   => array(
+		'slug'     => 'lvjm-tools',
+		'callback' => 'lvjm_tools_page',
+		'title'    => 'LiveJasmin Tools',
+	),
 );
 
 /**
