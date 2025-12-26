@@ -320,16 +320,20 @@ class LVJM_Search_Videos {
 		$like_filter_timeout = $wpdb->esc_like( '_transient_timeout_lvjm_vpapi_perf_filter_param' ) . '%';
 		$like_csv            = $wpdb->esc_like( '_transient_lvjm_csv_perf_' ) . '%';
 		$like_csv_timeout    = $wpdb->esc_like( '_transient_timeout_lvjm_csv_perf_' ) . '%';
+		$like_details        = $wpdb->esc_like( '_transient_lvjm_vpapi_details_' ) . '%';
+		$like_details_timeout = $wpdb->esc_like( '_transient_timeout_lvjm_vpapi_details_' ) . '%';
 
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 				$like_perf,
 				$like_perf_timeout,
 				$like_filter,
 				$like_filter_timeout,
 				$like_csv,
-				$like_csv_timeout
+				$like_csv_timeout,
+				$like_details,
+				$like_details_timeout
 			)
 		);
 		$this->debug_importer_log( 'Performer cache cleared via request flag.' );
@@ -491,44 +495,90 @@ class LVJM_Search_Videos {
 			return array();
 		}
 
-		$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
-		$psid                  = isset( $saved_partner_options['psid'] ) ? $saved_partner_options['psid'] : '';
-		$access_key            = isset( $saved_partner_options['accesskey'] ) ? $saved_partner_options['accesskey'] : '';
-		if ( '' === $psid || '' === $access_key ) {
+		$cache_key = 'lvjm_vpapi_details_' . md5( $video_id );
+		$cached    = get_transient( $cache_key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		// Build details URL from the existing feed URL (keeps site/language/psid/accessKey/etc).
+		$feed_url = (string) $this->feed_url;
+		if ( '' === $feed_url ) {
 			return array();
 		}
 
-		$primary_color = str_replace( '#', '', xbox_get_field_value( 'lvjm-options', 'primary-color' ) );
-		$label_color   = str_replace( '#', '', xbox_get_field_value( 'lvjm-options', 'label-color' ) );
-		$client_ip     = '90.90.90.90';
-		$api_url       = sprintf(
-			'https://pt.ptawe.com/api/video-promotion/v1/details/%s?clientIp=%s&primaryColor=%s&labelColor=%s&psid=%s&accessKey=%s',
-			rawurlencode( $video_id ),
-			rawurlencode( $client_ip ),
-			rawurlencode( $primary_color ),
-			rawurlencode( $label_color ),
-			rawurlencode( $psid ),
-			rawurlencode( $access_key )
-		);
+		$parsed = wp_parse_url( $feed_url );
+		if ( empty( $parsed['host'] ) ) {
+			return array();
+		}
+
+		$query = array();
+		if ( ! empty( $parsed['query'] ) ) {
+			parse_str( $parsed['query'], $query );
+		}
+
+		// Remove paging-only args, keep auth + site/language/etc.
+		unset( $query['limit'], $query['pageIndex'], $query['page'] );
+
+		// Ensure colors exist.
+		$primary_color = str_replace( '#', '', (string) xbox_get_field_value( 'lvjm-options', 'primary-color' ) );
+		$label_color   = str_replace( '#', '', (string) xbox_get_field_value( 'lvjm-options', 'label-color' ) );
+		if ( '' !== $primary_color ) {
+			$query['primaryColor'] = $primary_color;
+		}
+		if ( '' !== $label_color ) {
+			$query['labelColor'] = $label_color;
+		}
+
+		// Ensure clientIp exists.
+		if ( empty( $query['clientIp'] ) ) {
+			$query['clientIp'] = '127.0.0.1';
+		}
+
+		$scheme = ! empty( $parsed['scheme'] ) ? $parsed['scheme'] : 'https';
+
+		// Convert /list -> /details/{id} (also supports /client/list -> /client/details/{id})
+		$path = ! empty( $parsed['path'] ) ? $parsed['path'] : '';
+		$path = preg_replace( '#/list$#', '/details/' . rawurlencode( $video_id ), $path, 1, $count1 );
+		if ( 0 === (int) $count1 ) {
+			$path = preg_replace( '#/client/list$#', '/client/details/' . rawurlencode( $video_id ), $path, 1 );
+		}
+
+		$api_url = $scheme . '://' . $parsed['host'] . $path . '?' . http_build_query( $query );
 
 		$response = wp_remote_get(
 			$api_url,
 			array(
 				'timeout'   => 20,
 				'sslverify' => false,
+				'headers'   => array(
+					'X-Requested-With' => 'XMLHttpRequest',
+				),
 			)
 		);
 
 		if ( is_wp_error( $response ) ) {
+			set_transient( $cache_key, array(), 10 * MINUTE_IN_SECONDS );
 			return array();
 		}
 
-		$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( ! isset( $response_body['data'] ) || ! is_array( $response_body['data'] ) ) {
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $body ) ) {
+			set_transient( $cache_key, array(), 10 * MINUTE_IN_SECONDS );
 			return array();
 		}
 
-		$data        = $response_body['data'];
+		$data = array();
+		if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
+			$data = $body['data'];
+		} else {
+			$data = $body;
+		}
+
+		if ( isset( $data['video'] ) && is_array( $data['video'] ) ) {
+			$data = $data['video'];
+		}
+
 		$thumb_url   = '';
 		$thumbs_urls = array();
 		$trailer_url = '';
@@ -566,7 +616,7 @@ class LVJM_Search_Videos {
 			$duration = (string) $data['duration'];
 		}
 
-		return array(
+		$out = array(
 			'thumb_url'    => $thumb_url,
 			'thumbs_urls'  => $thumbs_urls,
 			'trailer_url'  => $trailer_url,
@@ -574,6 +624,14 @@ class LVJM_Search_Videos {
 			'tracking_url' => $target_url,
 			'duration'     => $duration,
 		);
+
+		$out = $this->normalize_video_urls( $out );
+		if ( '' === $out['thumb_url'] && ! empty( $out['thumbs_urls'] ) ) {
+			$out['thumb_url'] = (string) $out['thumbs_urls'][0];
+		}
+
+		set_transient( $cache_key, $out, 12 * HOUR_IN_SECONDS );
+		return $out;
 	}
 
 	/**
@@ -583,7 +641,14 @@ class LVJM_Search_Videos {
 	 * @return string Normalized URL.
 	 */
 	private function normalize_https_url( $url ) {
-		$url = (string) $url;
+		$url = trim( (string) $url );
+		if ( '' === $url ) {
+			return '';
+		}
+		// Handle protocol-relative URLs: //cdn...
+		if ( 0 === strpos( $url, '//' ) ) {
+			return 'https:' . $url;
+		}
 		if ( 0 === strpos( $url, 'http://' ) ) {
 			return 'https://' . substr( $url, 7 );
 		}
@@ -845,7 +910,14 @@ class LVJM_Search_Videos {
 					'checked'      => true,
 					'grabbed'      => false,
 				);
-				$videos[] = $this->normalize_video_urls( $video );
+				$video = $this->normalize_video_urls( $video );
+
+				// Fallback: if API didn't provide thumbImage/profileImage, use first preview image.
+				if ( '' === $video['thumb_url'] && ! empty( $video['thumbs_urls'] ) ) {
+					$video['thumb_url'] = (string) $video['thumbs_urls'][0];
+				}
+
+				$videos[] = $video;
 			}
 
 			$videos_details = array();
