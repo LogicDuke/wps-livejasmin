@@ -28,7 +28,7 @@ function lvjm_delete_post( $post_id ) {
 				unset( $removed_videos_ids[ $partner_id ][ $video_key ] );
 				$removed_videos_ids[ $partner_id ] = array_values( $removed_videos_ids[ $partner_id ] );
 				WPSCORE()->update_product_option( 'LVJM', 'removed_videos_ids', $removed_videos_ids );
-				WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-UNREMOVE] video_id ' . $video_id . ' unblocked due to post deletion', __FILE__, __LINE__ );
+				WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-UNREMOVE] video_id ' . $video_id . ' removed from removed_videos_ids on post delete', __FILE__, __LINE__ );
 			}
 		}
 	}
