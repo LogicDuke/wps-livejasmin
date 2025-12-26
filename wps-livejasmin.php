@@ -217,6 +217,7 @@ if ( ! class_exists( 'LVJM' ) ) {
 			WPSCORE()->init( true );
 			wp_clear_scheduled_hook( 'lvjm_update_one_feed' );
 			wp_schedule_event( time(), 'twicedaily', 'lvjm_update_one_feed' );
+			self::purge_performer_transients();
 		}
 
 		/**
@@ -247,6 +248,35 @@ if ( ! class_exists( 'LVJM' ) ) {
 			wp_clear_scheduled_hook( 'LVJM_update_one_feed' );
 			wp_clear_scheduled_hook( 'lvjm_update_one_feed' );
 			WPSCORE()->init( true );
+		}
+
+		/**
+		 * Purge performer-related transients on activation/update.
+		 *
+		 * @since 1.3.3
+		 *
+		 * @return void
+		 */
+		public static function purge_performer_transients() {
+			global $wpdb;
+
+			$perf_like         = $wpdb->esc_like( '_transient_lvjm_perf_' ) . '%';
+			$perf_timeout_like = $wpdb->esc_like( '_transient_timeout_lvjm_perf_' ) . '%';
+			$filter_like       = $wpdb->esc_like( '_transient_lvjm_vpapi_perf_filter_param' ) . '%';
+			$filter_timeout_like = $wpdb->esc_like( '_transient_timeout_lvjm_vpapi_perf_filter_param' ) . '%';
+
+			$wpdb->query(
+				$wpdb->prepare(
+					"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+					$perf_like,
+					$perf_timeout_like,
+					$filter_like,
+					$filter_timeout_like
+				)
+			);
+
+			delete_transient( 'lvjm_vpapi_perf_filter_param' );
+			delete_transient( 'lvjm_vpapi_perf_filter_param_v2' );
 		}
 
 		/**
