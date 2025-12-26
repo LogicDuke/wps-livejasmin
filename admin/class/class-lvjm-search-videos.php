@@ -141,6 +141,9 @@ class LVJM_Search_Videos {
 					}
 					switch ( $this->params['partner']['data_type'] ) {
 						case 'json':
+							if ( $this->is_performer_search() ) {
+								return $this->retrieve_performer_videos_from_json_feed();
+							}
 							return $this->retrieve_videos_from_json_feed();
 						default:
 							break;
@@ -250,6 +253,361 @@ class LVJM_Search_Videos {
 		$query    = isset( $parsed_url['query'] ) ? '?' . $parsed_url['query'] : '';
 		$fragment = isset( $parsed_url['fragment'] ) ? '#' . $parsed_url['fragment'] : '';
 		return "$scheme$user$pass$host$port$path$query$fragment";
+	}
+
+	/**
+	 * Check if current search is a performer search.
+	 *
+	 * @return bool True when performer search mode is enabled.
+	 */
+	private function is_performer_search() {
+		return isset( $this->params['search_mode'], $this->params['performer_id'] )
+			&& 'performer' === $this->params['search_mode']
+			&& '' !== trim( (string) $this->params['performer_id'] );
+	}
+
+	/**
+	 * Log importer debug messages when enabled.
+	 *
+	 * @param string $message The message to log.
+	 * @param array  $context Additional context.
+	 * @return void
+	 */
+	private function debug_importer_log( $message, $context = array() ) {
+		if ( ! defined( 'LVJM_DEBUG_IMPORTER' ) || ! LVJM_DEBUG_IMPORTER ) {
+			return;
+		}
+		$suffix = '';
+		if ( ! empty( $context ) ) {
+			$suffix = ' ' . wp_json_encode( $context );
+		}
+		WPSCORE()->write_log( 'info', '[TMW-IMPORTER] ' . $message . $suffix, __FILE__, __LINE__ );
+	}
+
+	/**
+	 * Normalize a performer id for matching.
+	 *
+	 * @param string $performer_id Performer id.
+	 * @return string Normalized performer id.
+	 */
+	private function normalize_performer_id( $performer_id ) {
+		$normalized = strtolower( trim( (string) $performer_id ) );
+		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+	}
+
+	/**
+	 * Normalize cache component values.
+	 *
+	 * @param string $value Cache component.
+	 * @return string Normalized cache component.
+	 */
+	private function normalize_cache_component( $value ) {
+		$normalized = strtolower( trim( (string) $value ) );
+		return preg_replace( '/[^a-z0-9]+/', '_', $normalized );
+	}
+
+	/**
+	 * Normalize a tag and detect orientation.
+	 *
+	 * @param string $tag Tag string.
+	 * @return array Array with normalized tag and orientation.
+	 */
+	private function normalize_tag_and_orientation( $tag ) {
+		$orientation = 'straight';
+		$tag_value   = (string) $tag;
+		if ( strpos( $tag_value, 'gay' ) !== false ) {
+			$tag_value   = trim( str_replace( 'gay', '', $tag_value ) );
+			$orientation = 'gay';
+		}
+		if ( strpos( $tag_value, 'shemale' ) !== false ) {
+			$tag_value   = trim( str_replace( 'shemale', '', $tag_value ) );
+			$orientation = 'shemale';
+		}
+		return array( $tag_value, $orientation );
+	}
+
+	/**
+	 * Build a feed url for performer searches.
+	 *
+	 * @param string $tag Tag value.
+	 * @param string $orientation Orientation value.
+	 * @param bool   $omit_tags Whether to omit tags.
+	 * @param string $filter_param Filter parameter name.
+	 * @param string $filter_value Filter value.
+	 * @return string The feed url.
+	 */
+	private function build_feed_url_for_performer( $tag, $orientation, $omit_tags, $filter_param = '', $filter_value = '' ) {
+		$parsed_url = wp_parse_url( $this->feed_url );
+		$query      = array();
+		if ( isset( $parsed_url['query'] ) ) {
+			parse_str( $parsed_url['query'], $query );
+		}
+		$query['sexualOrientation'] = $orientation;
+		if ( $omit_tags ) {
+			unset( $query['tags'] );
+		} elseif ( '' !== $tag ) {
+			$query['tags'] = $tag;
+		}
+		if ( '' !== $filter_param && '' !== $filter_value ) {
+			$query[ $filter_param ] = $filter_value;
+		}
+		$parsed_url['query'] = http_build_query( $query );
+		return $this->unparse_url( $parsed_url );
+	}
+
+	/**
+	 * Extract performer id from a feed item.
+	 *
+	 * @param array $item Feed item.
+	 * @return string Performer id if available.
+	 */
+	private function extract_performer_id_from_item( $item ) {
+		$item = (array) $item;
+		foreach ( array( 'performerId', 'performer_id', 'performer', 'uploader', 'model' ) as $key ) {
+			if ( isset( $item[ $key ] ) ) {
+				return (string) $item[ $key ];
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Find videos from a json feed using performer search.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return bool true if there are no error, false if not.
+	 */
+	private function retrieve_performer_videos_from_json_feed() {
+		$performer_raw        = isset( $this->params['performer_id'] ) ? sanitize_text_field( (string) $this->params['performer_id'] ) : '';
+		$normalized_performer = $this->normalize_performer_id( $performer_raw );
+		$tag_input            = isset( $this->params['cat_s'] ) ? sanitize_text_field( (string) $this->params['cat_s'] ) : '';
+
+		if ( '' === $normalized_performer ) {
+			$this->videos        = array();
+			$this->searched_data = array(
+				'videos_details' => array(),
+				'counters'       => array(
+					'valid_videos'    => 0,
+					'invalid_videos'  => 0,
+					'existing_videos' => 0,
+					'removed_videos'  => 0,
+				),
+				'videos'         => array(),
+			);
+			return true;
+		}
+
+		list( $tag_value, $orientation ) = $this->normalize_tag_and_orientation( $tag_input );
+		$tag_for_cache                  = '' !== $tag_value ? $tag_value : 'all';
+		$cache_key                      = 'lvjm_perf_' . $orientation . '_' . $this->normalize_cache_component( $tag_for_cache ) . '_' . $normalized_performer;
+		$cached                         = get_transient( $cache_key );
+		if ( is_array( $cached ) && isset( $cached['videos'], $cached['searched_data'] ) ) {
+			$this->videos        = $cached['videos'];
+			$this->searched_data = $cached['searched_data'];
+			$this->debug_importer_log( 'Performer search cache hit.', array( 'cache_key' => $cache_key ) );
+			return true;
+		}
+
+		$limit                 = isset( $this->params['limit'] ) ? intval( $this->params['limit'] ) : 60;
+		$limit                 = min( $limit, 60 );
+		$existing_ids          = $this->get_partner_existing_ids();
+		$array_valid_videos    = array();
+		$counters              = array(
+			'valid_videos'    => 0,
+			'invalid_videos'  => 0,
+			'existing_videos' => 0,
+			'removed_videos'  => 0,
+		);
+		$videos_details        = array();
+		$count_valid_feed_items = 0;
+		$end                   = false;
+
+		$args = array(
+			'timeout'   => 300,
+			'sslverify' => false,
+		);
+		$args['user-agent'] = 'WordPress/' . $this->wp_version . '; ' . home_url();
+		if ( isset( $this->feed_infos->feed_auth ) ) {
+			$args['headers'] = array( 'Authorization' => $this->get_partner_feed_infos( $this->feed_infos->feed_auth->data ) );
+		}
+
+		$current_page = intval( $this->get_partner_feed_infos( $this->feed_infos->feed_first_page->data ) );
+		$paged        = '';
+		if ( isset( $this->feed_infos->feed_paged ) ) {
+			$paged = $this->get_partner_feed_infos( $this->feed_infos->feed_paged->data );
+		}
+
+		$omit_tags = '' === $tag_value;
+		if ( $omit_tags ) {
+			$probe_url      = $this->build_feed_url_for_performer( $tag_value, $orientation, true );
+			$probe_response = wp_remote_get( '' !== $paged ? $probe_url . $paged . $current_page : $probe_url, $args );
+			$probe_body     = json_decode( wp_remote_retrieve_body( $probe_response ), true );
+			if ( is_wp_error( $probe_response )
+				|| ! is_array( $probe_body )
+				|| empty( $probe_body['data'] )
+				|| empty( $probe_body['data']['videos'] ) ) {
+				$tag_value = '69';
+				$omit_tags = false;
+			}
+		}
+
+		$filter_params = array( 'performerId', 'performer', 'model', 'uploader', 'search', 'q' );
+		$filter_used   = '';
+		$root_feed_url = '';
+		$first_body    = null;
+
+		foreach ( $filter_params as $filter_param ) {
+			$candidate_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $filter_param, $performer_raw );
+			$response      = wp_remote_get( '' !== $paged ? $candidate_url . $paged . $current_page : $candidate_url, $args );
+			$body          = json_decode( wp_remote_retrieve_body( $response ), true );
+			if ( is_wp_error( $response ) ) {
+				continue;
+			}
+			if ( is_array( $body ) && ! empty( $body['data']['videos'] ) ) {
+				$filter_used = $filter_param;
+				$root_feed_url = $candidate_url;
+				$first_body  = $body;
+				break;
+			}
+		}
+
+		if ( '' === $root_feed_url ) {
+			$root_feed_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags );
+		}
+
+		$pages_fetched = 0;
+		while ( false === $end ) {
+			if ( 0 === $pages_fetched && is_array( $first_body ) ) {
+				$response_body = $first_body;
+			} else {
+				$this->feed_url = '' !== $paged ? $root_feed_url . $paged . $current_page : $root_feed_url;
+				$response       = wp_remote_get( $this->feed_url, $args );
+
+				if ( is_wp_error( $response ) ) {
+					WPSCORE()->write_log( 'error', 'Retrieving videos from JSON feed failed<code>ERROR: ' . wp_json_encode( $response->errors ) . '</code>', __FILE__, __LINE__ );
+					return false;
+				}
+
+				$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+			}
+
+			if ( isset( $response_body['status'] ) && 'ERROR' === $response_body['status'] ) {
+				$end              = true;
+				$page_end         = true;
+				$videos_details[] = array(
+					'id'       => 'end',
+					'response' => 'livejasmin API Error',
+				);
+			}
+
+			if ( empty( $response_body['data']['videos'] ) || ( isset( $response_body['data']['pagination']['totalPages'] ) && $current_page > $response_body['data']['pagination']['totalPages'] ) ) {
+				$end              = true;
+				$page_end         = true;
+				$videos_details[] = array(
+					'id'       => 'end',
+					'response' => 'No more videos',
+				);
+			} else {
+				if ( isset( $this->feed_infos->feed_item_path->node ) ) {
+					$root       = $this->feed_infos->feed_item_path->node;
+					$array_feed = $response_body['data'][ $root ];
+				} else {
+					$array_feed = $response_body['data'];
+				}
+				$count_total_feed_items = count( $array_feed );
+				$current_item           = 0;
+				$page_end               = false;
+			}
+
+			while ( false === $page_end ) {
+				$feed_item_data = $array_feed[ $current_item ];
+				$performer_id   = $this->extract_performer_id_from_item( $feed_item_data );
+				if ( '' === $performer_id || $this->normalize_performer_id( $performer_id ) !== $normalized_performer ) {
+					++$current_item;
+					if ( $current_item >= $count_total_feed_items ) {
+						$page_end = true;
+						++$current_page;
+					}
+					continue;
+				}
+
+				$feed_item = new LVJM_Json_Item( $feed_item_data );
+				$feed_item->init( $this->params, $this->feed_infos );
+				if ( $feed_item->is_valid() ) {
+					if ( ! in_array( $feed_item->get_id(), (array) $existing_ids['partner_all_videos_ids'], true ) ) {
+						$array_valid_videos[] = (array) $feed_item->get_data_for_json( $count_valid_feed_items );
+						$videos_details[]     = array(
+							'id'       => $feed_item->get_id(),
+							'response' => 'Success',
+						);
+						++$counters['valid_videos'];
+						++$count_valid_feed_items;
+					} elseif ( in_array( $feed_item->get_id(), (array) $existing_ids['partner_existing_videos_ids'], true ) ) {
+						$videos_details[] = array(
+							'id'       => $feed_item->get_id(),
+							'response' => 'Already imported',
+						);
+						++$counters['existing_videos'];
+					} elseif ( in_array( $feed_item->get_id(), (array) $existing_ids['partner_unwanted_videos_ids'], true ) ) {
+						$videos_details[] = array(
+							'id'       => $feed_item->get_id(),
+							'response' => 'You removed it from search results',
+						);
+						++$counters['removed_videos'];
+					}
+				} else {
+					$videos_details[] = array(
+						'id'       => $feed_item->get_id(),
+						'response' => 'Invalid',
+					);
+					++$counters['invalid_videos'];
+				}
+
+				if ( $count_valid_feed_items >= $limit || $current_item >= ( $count_total_feed_items - 1 ) ) {
+					$page_end = true;
+					++$current_page;
+					if ( $count_valid_feed_items >= $limit ) {
+						$end = true;
+					}
+				}
+				++$current_item;
+			}
+			++$pages_fetched;
+			if ( $pages_fetched >= 10 ) {
+				$end = true;
+			}
+		}
+
+		$this->searched_data = array(
+			'videos_details' => $videos_details,
+			'counters'       => $counters,
+			'videos'         => $array_valid_videos,
+		);
+		$this->videos        = $array_valid_videos;
+
+		set_transient(
+			$cache_key,
+			array(
+				'videos'        => $this->videos,
+				'searched_data' => $this->searched_data,
+			),
+			6 * HOUR_IN_SECONDS
+		);
+
+		$this->debug_importer_log(
+			'Performer search completed.',
+			array(
+				'mode'          => 'performer',
+				'tag'           => $tag_value,
+				'orientation'   => $orientation,
+				'filter_param'  => $filter_used,
+				'pages_fetched' => $pages_fetched,
+				'results'       => count( $this->videos ),
+			)
+		);
+
+		return true;
 	}
 
 	/**

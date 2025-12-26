@@ -390,7 +390,12 @@ public function get_whitelabel_id_from_url( $url ) {
 				$suffix_key   = $suffix ? " $suffix" : '';
 				$suffix_value = $suffix ? " ($suffix)" : '';
 				foreach ( $tags as $tag ) {
-					$categories[ 'optgroup::' . $orientation ][ $tag . $suffix_key ] = ucwords( $tag ) . $suffix_value;
+					if ( 'Straight' === $orientation && '69' === $tag ) {
+						$label = 'All Straight Categories';
+					} else {
+						$label = ucwords( $tag ) . $suffix_value;
+					}
+					$categories[ 'optgroup::' . $orientation ][ $tag . $suffix_key ] = $label;
 				}
 			}
 			return $categories;

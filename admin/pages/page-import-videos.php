@@ -142,13 +142,20 @@ function lvjm_import_videos_page() {
 															<div v-show="!partnerCatsLoading" style="display:inline;">
 																<partner-cats-select v-model="selectedCat" id="cat_s_select" v-bind:data="partnerCats" v-bind:options="{'width':'fit', 'size':'20', 'liveSearch':true}"></partner-cats-select>
 															</div>
-															<span id="kw-search" v-show="selectedPartnerObject.filters.search_by == 'keyword'">
-															<strong>- <?php esc_html_e( 'OR', 'lvjm_lang' ); ?> -</strong> <?php esc_html_e( 'Enter some keywords', 'lvjm_lang' ); ?> <input v-model="selectedKW" v-bind:disabled="searchingVideos" v-on:keyup.enter.prevent="searchVideos('create')" id="kw_s" type="text" placeholder="<?php esc_html_e( 'eg. ebony lesbian', 'lvjm_lang' ); ?>" name="kw_s" class="form-control" style="width:250px;">
+															<span id="search-mode" style="margin-left:8px;">
+																<label for="search_mode" class="sr-only"><?php esc_html_e( 'Search mode', 'lvjm_lang' ); ?></label>
+																<select id="search_mode" v-model="searchMode" class="form-control" style="width:230px;">
+																	<option value="keyword"><?php esc_html_e( 'Search by Keyword', 'lvjm_lang' ); ?></option>
+																	<option value="performer"><?php esc_html_e( 'Search by Model (performerId)', 'lvjm_lang' ); ?></option>
+																</select>
 															</span>
-											<span id="performer-search" style="margin-left:8px;">
-												<label for="performer_s" class="sr-only"><?php esc_html_e( 'Performer', 'lvjm_lang' ); ?></label>
-												<input type="text" v-model="selectedPerformer" placeholder="<?php esc_attr_e( 'Performer (optional)', 'lvjm_lang' ); ?>" id="performer_s" name="performer_s" class="form-control" style="width:220px;">
-											</span>
+															<span id="kw-search" v-show="searchMode === 'keyword' && selectedPartnerObject.filters.search_by == 'keyword'">
+																<strong>- <?php esc_html_e( 'OR', 'lvjm_lang' ); ?> -</strong> <?php esc_html_e( 'Enter some keywords', 'lvjm_lang' ); ?> <input v-model="selectedKW" v-bind:disabled="searchingVideos" v-on:keyup.enter.prevent="searchVideos('create')" id="kw_s" type="text" placeholder="<?php esc_html_e( 'eg. ebony lesbian', 'lvjm_lang' ); ?>" name="kw_s" class="form-control" style="width:250px;">
+															</span>
+															<span id="performer-search" v-show="searchMode === 'performer'" style="margin-left:8px;">
+																<label for="performer_s" class="sr-only"><?php esc_html_e( 'Performer ID', 'lvjm_lang' ); ?></label>
+																<input type="text" v-model="selectedPerformer" v-bind:disabled="searchingVideos" v-on:keyup.enter.prevent="searchVideos('create')" placeholder="<?php esc_attr_e( 'Enter performerId (e.g. anisiyia)', 'lvjm_lang' ); ?>" id="performer_s" name="performer_s" class="form-control" style="width:250px;">
+															</span>
 
 														</div>
 													</div>
