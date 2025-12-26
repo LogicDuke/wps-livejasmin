@@ -32,49 +32,6 @@ function lvjm_search_videos( $params = '' ) {
 	}
 
 	$videos = $search_videos->get_videos();
-	// --- Performer filtering (addon) ---
-	if ( isset( $params['performer'] ) ) {
-		$performer = sanitize_text_field( (string) $params['performer'] );
-		if ( '' !== $performer ) {
-			$filtered = array();
-			// Ensure helper exists to fetch performer name when not provided by feed
-			if ( ! function_exists( 'lvjm_get_embed_and_actors' ) ) {
-				$actions_file = dirname( __FILE__ ) . '/ajax-get-embed-and-actors.php';
-				if ( file_exists( $actions_file ) ) {
-					require_once $actions_file;
-				}
-			}
-			foreach ( (array) $videos as $v ) {
-				$match = false;
-				$actors = '';
-				if ( isset( $v['actors'] ) ) {
-					$actors = (string) $v['actors'];
-				}
-				if ( '' !== $actors && false !== stripos( $actors, $performer ) ) {
-					$match = true;
-				} else {
-					// Fallback: ask API for performer of this video ID
-					if ( function_exists( 'lvjm_get_embed_and_actors' ) && isset( $v['id'] ) ) {
-						try {
-							$more = lvjm_get_embed_and_actors( array( 'video_id' => $v['id'] ) );
-							if ( ! empty( $more['performer_name'] ) && false !== stripos( $more['performer_name'], $performer ) ) {
-								$match = true;
-								// also enrich actors for UI
-								$v['actors'] = $more['performer_name'];
-							}
-						} catch ( \Throwable $e ) {
-							// ignore
-						}
-					}
-				}
-				if ( $match ) {
-					$filtered[] = $v;
-				}
-			}
-			$videos = $filtered;
-		}
-	}
-	// --- /Performer filtering ---
 
 	if ( ! $ajax_call ) {
 		return $videos;

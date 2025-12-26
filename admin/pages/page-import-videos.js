@@ -100,6 +100,7 @@ function LVJM_pageImportVideos() {
                 selectedCat: '',
                 selectedKW: '',
                 selectedPerformer: '',
+                searchMode: 'keyword',
                 selectedWPCat: 0,
                 selectedPostsStatus: '',
                 newWpCategoryName: '',
@@ -254,6 +255,9 @@ function LVJM_pageImportVideos() {
                     return this.videos.length;
                 },
                 searchBtnClass: function () {
+                    if (this.searchMode === 'performer') {
+                        return this.selectedPerformer === '' ? 'disabled' : '';
+                    }
                     if (this.selectedCat == '' && this.selectedKW == '') {
                         return 'disabled';
                     }
@@ -267,6 +271,9 @@ function LVJM_pageImportVideos() {
                 },
                 searchButtonTooltip: function () {
                     self = this;
+                    if (this.searchMode === 'performer') {
+                        return this.selectedPerformer !== '' ? '' : 'Enter a performerId to search.';
+                    }
                     if( this.selectedCat !== '' || this.selectedKW !== '' ) return '';
 
                     return this.data.objectL10n.select_cat_from + ' ' + lodash.find(this.data.partners, function (p) {
@@ -364,6 +371,8 @@ function LVJM_pageImportVideos() {
                     this.selectedCat = '';
                     this.selectedWPCat = 0;
                     this.selectedKW = '';
+                    this.selectedPerformer = '';
+                    this.searchMode = 'keyword';
                     this.selectedPostsStatus = '';
 
                     this.searchedData = {};
@@ -395,6 +404,7 @@ function LVJM_pageImportVideos() {
                     var cat_s = '';
                     var kw = '';
                     var partnerId = '';
+                    var searchMode = this.searchMode;
 
                     //reset searching states
                     this.videos = [];
@@ -403,8 +413,13 @@ function LVJM_pageImportVideos() {
 
                     if (feedId === undefined) {
 
-                        cat_s = this.selectedKW != '' ? this.selectedKW.toLowerCase().split(' ').join(this.selectedPartnerObject.filters.search_sep).trim() : this.selectedCat;
-                        kw = this.selectedKW != '' ? 1 : 0;
+                        if (searchMode === 'performer') {
+                            cat_s = this.selectedCat != '' ? this.selectedCat : '';
+                            kw = 0;
+                        } else {
+                            cat_s = this.selectedKW != '' ? this.selectedKW.toLowerCase().split(' ').join(this.selectedPartnerObject.filters.search_sep).trim() : this.selectedCat;
+                            kw = this.selectedKW != '' ? 1 : 0;
+                        }
                         partner = this.selectedPartnerObject;
 
                         jQuery('[data-id="sort_partners"]').prop("disabled", true);
@@ -435,6 +450,7 @@ function LVJM_pageImportVideos() {
                         } else {
                             this.selectedCat = cat_s;
                         }
+                        searchMode = 'keyword';
                     }
 
                     if (method == 'update') {
@@ -456,7 +472,8 @@ function LVJM_pageImportVideos() {
                                 nonce: LVJM_import_videos.ajax.nonce,
                                 original_cat_s: cat_s.replace('&', '%%'),
                                 partner: partner,
-                                performer: this.selectedPerformer
+                                search_mode: searchMode,
+                                performer_id: searchMode === 'performer' ? this.selectedPerformer : ''
                             }, {
                                 emulateJSON: true
                             })
@@ -902,6 +919,8 @@ function LVJM_pageImportVideos() {
                         this.selectedCat = '';
                         //reset selectedKW field
                         this.selectedKW = '';
+                        this.selectedPerformer = '';
+                        this.searchMode = 'keyword';
                         this.loadPartnerCats();
                     }
                 },
@@ -921,9 +940,22 @@ function LVJM_pageImportVideos() {
                     }
                 },
                 selectedKW: function (newKW) {
-                    if ('' != newKW) {
+                    if ('' != newKW && this.searchMode === 'keyword') {
                         jQuery('#cat_s_select').selectpicker('val', '');
                         this.selectedCat = '';
+                        this.videos = [];
+                        this.videosHasBeenSearched = false;
+                    }
+                },
+                searchMode: function (newMode) {
+                    if (newMode === 'performer') {
+                        this.selectedKW = '';
+                    } else {
+                        this.selectedPerformer = '';
+                    }
+                },
+                selectedPerformer: function (newPerformer) {
+                    if ('' != newPerformer && this.searchMode === 'performer') {
                         this.videos = [];
                         this.videosHasBeenSearched = false;
                     }
