@@ -314,18 +314,22 @@ class LVJM_Search_Videos {
 			return;
 		}
 		global $wpdb;
-		$like_perf          = $wpdb->esc_like( '_transient_lvjm_perf_v2_' ) . '%';
-		$like_perf_timeout  = $wpdb->esc_like( '_transient_timeout_lvjm_perf_v2_' ) . '%';
-		$like_filter        = $wpdb->esc_like( '_transient_lvjm_vpapi_perf_filter_param' ) . '%';
+		$like_perf           = $wpdb->esc_like( '_transient_lvjm_perf_v2_' ) . '%';
+		$like_perf_timeout   = $wpdb->esc_like( '_transient_timeout_lvjm_perf_v2_' ) . '%';
+		$like_filter         = $wpdb->esc_like( '_transient_lvjm_vpapi_perf_filter_param' ) . '%';
 		$like_filter_timeout = $wpdb->esc_like( '_transient_timeout_lvjm_vpapi_perf_filter_param' ) . '%';
+		$like_csv            = $wpdb->esc_like( '_transient_lvjm_csv_perf_' ) . '%';
+		$like_csv_timeout    = $wpdb->esc_like( '_transient_timeout_lvjm_csv_perf_' ) . '%';
 
 		$wpdb->query(
 			$wpdb->prepare(
-				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 				$like_perf,
 				$like_perf_timeout,
 				$like_filter,
-				$like_filter_timeout
+				$like_filter_timeout,
+				$like_csv,
+				$like_csv_timeout
 			)
 		);
 		$this->debug_importer_log( 'Performer cache cleared via request flag.' );
@@ -370,6 +374,206 @@ class LVJM_Search_Videos {
 	private function normalize_performer_id( $performer_id ) {
 		$normalized = strtolower( trim( (string) $performer_id ) );
 		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+	}
+
+	/**
+	 * Normalize performer names for CSV lookups.
+	 *
+	 * @param string $name Performer name.
+	 * @return string Normalized performer name.
+	 */
+	private function lvjm_normalize_performer_name( $name ) {
+		$normalized = strtolower( trim( (string) $name ) );
+		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+	}
+
+	/**
+	 * Get the VPAPI details CSV path.
+	 *
+	 * @return string CSV path.
+	 */
+	private function lvjm_vpapi_csv_path() {
+		$upload_dir   = wp_upload_dir();
+		$default_path = trailingslashit( $upload_dir['basedir'] ) . 'lvjm/vpapi_details.csv';
+		return apply_filters( 'lvjm_vpapi_details_csv_path', $default_path );
+	}
+
+	/**
+	 * Find CSV rows by performer name.
+	 *
+	 * @param string $performer_query Performer search query.
+	 * @return array|null Matching rows or null on failure.
+	 */
+	private function lvjm_csv_find_by_performer( $performer_query ) {
+		$normalized_query = $this->lvjm_normalize_performer_name( $performer_query );
+		if ( '' === $normalized_query ) {
+			return null;
+		}
+
+		$csv_path = $this->lvjm_vpapi_csv_path();
+		if ( '' === $csv_path || ! is_readable( $csv_path ) ) {
+			return null;
+		}
+
+		$mtime = filemtime( $csv_path );
+		if ( false === $mtime ) {
+			return null;
+		}
+
+		$cache_key = 'lvjm_csv_perf_' . md5( $normalized_query );
+		$cached    = get_transient( $cache_key );
+		if ( is_array( $cached ) && isset( $cached['mtime'], $cached['rows'] ) && (int) $cached['mtime'] === (int) $mtime ) {
+			return $cached['rows'];
+		}
+
+		$this->debug_importer_log( 'Performer CSV path resolved.', array( 'path' => $csv_path ) );
+
+		$rows = array();
+		try {
+			$file = new SplFileObject( $csv_path );
+		} catch ( Exception $exception ) {
+			return null;
+		}
+		$file->setFlags( SplFileObject::READ_CSV | SplFileObject::SKIP_EMPTY | SplFileObject::DROP_NEW_LINE );
+		$header_read = false;
+
+		foreach ( $file as $row ) {
+			if ( ! is_array( $row ) || empty( array_filter( $row, 'strlen' ) ) ) {
+				continue;
+			}
+			if ( ! $header_read ) {
+				$header_read = true;
+				continue;
+			}
+			$video_id  = isset( $row[0] ) ? trim( (string) $row[0] ) : '';
+			$title     = isset( $row[1] ) ? trim( (string) $row[1] ) : '';
+			$performer = isset( $row[2] ) ? trim( (string) $row[2] ) : '';
+			$tags      = isset( $row[3] ) ? trim( (string) $row[3] ) : '';
+
+			$normalized_performer = $this->lvjm_normalize_performer_name( $performer );
+			if ( '' === $normalized_performer ) {
+				continue;
+			}
+
+			if ( $normalized_performer !== $normalized_query && false === strpos( $normalized_performer, $normalized_query ) ) {
+				continue;
+			}
+
+			$rows[] = array(
+				'id'        => $video_id,
+				'title'     => $title,
+				'performer' => $performer,
+				'tags'      => $tags,
+			);
+		}
+
+		set_transient(
+			$cache_key,
+			array(
+				'mtime' => (int) $mtime,
+				'rows'  => $rows,
+			),
+			6 * HOUR_IN_SECONDS
+		);
+
+		return $rows;
+	}
+
+	/**
+	 * Fetch VPAPI details for a video id.
+	 *
+	 * @param string $video_id Video id.
+	 * @return array Video detail data.
+	 */
+	private function lvjm_fetch_vpapi_details( $video_id ) {
+		$video_id = trim( (string) $video_id );
+		if ( '' === $video_id ) {
+			return array();
+		}
+
+		$saved_partner_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+		$psid                  = isset( $saved_partner_options['psid'] ) ? $saved_partner_options['psid'] : '';
+		$access_key            = isset( $saved_partner_options['accesskey'] ) ? $saved_partner_options['accesskey'] : '';
+		if ( '' === $psid || '' === $access_key ) {
+			return array();
+		}
+
+		$primary_color = str_replace( '#', '', xbox_get_field_value( 'lvjm-options', 'primary-color' ) );
+		$label_color   = str_replace( '#', '', xbox_get_field_value( 'lvjm-options', 'label-color' ) );
+		$client_ip     = '90.90.90.90';
+		$api_url       = sprintf(
+			'https://pt.ptawe.com/api/video-promotion/v1/details/%s?clientIp=%s&primaryColor=%s&labelColor=%s&psid=%s&accessKey=%s',
+			rawurlencode( $video_id ),
+			rawurlencode( $client_ip ),
+			rawurlencode( $primary_color ),
+			rawurlencode( $label_color ),
+			rawurlencode( $psid ),
+			rawurlencode( $access_key )
+		);
+
+		$response = wp_remote_get(
+			$api_url,
+			array(
+				'timeout'   => 20,
+				'sslverify' => false,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return array();
+		}
+
+		$response_body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! isset( $response_body['data'] ) || ! is_array( $response_body['data'] ) ) {
+			return array();
+		}
+
+		$data        = $response_body['data'];
+		$thumb_url   = '';
+		$thumbs_urls = array();
+		$trailer_url = '';
+		$video_url   = '';
+		$target_url  = '';
+		$duration    = '';
+
+		if ( isset( $data['thumbImage'] ) ) {
+			$thumb_url = (string) $data['thumbImage'];
+		} elseif ( isset( $data['profileImage'] ) ) {
+			$thumb_url = (string) $data['profileImage'];
+		}
+
+		if ( isset( $data['previewImages'] ) ) {
+			if ( is_array( $data['previewImages'] ) ) {
+				$thumbs_urls = $data['previewImages'];
+			} else {
+				$thumbs_urls = array_filter( array_map( 'trim', explode( ',', (string) $data['previewImages'] ) ) );
+			}
+		}
+
+		if ( isset( $data['previewVideo'] ) ) {
+			$trailer_url = (string) $data['previewVideo'];
+		} elseif ( isset( $data['previewVideoUrl'] ) ) {
+			$trailer_url = (string) $data['previewVideoUrl'];
+		}
+
+		if ( isset( $data['detailsUrl'] ) ) {
+			$video_url = (string) $data['detailsUrl'];
+		}
+		if ( isset( $data['targetUrl'] ) ) {
+			$target_url = (string) $data['targetUrl'];
+		}
+		if ( isset( $data['duration'] ) ) {
+			$duration = (string) $data['duration'];
+		}
+
+		return array(
+			'thumb_url'    => $thumb_url,
+			'thumbs_urls'  => $thumbs_urls,
+			'trailer_url'  => $trailer_url,
+			'video_url'    => $video_url,
+			'tracking_url' => $target_url,
+			'duration'     => $duration,
+		);
 	}
 
 	/**
@@ -581,6 +785,104 @@ class LVJM_Search_Videos {
 		}
 
 		$this->maybe_clear_performer_cache();
+
+		$csv_rows = $this->lvjm_csv_find_by_performer( $query_raw );
+		if ( null !== $csv_rows && ! empty( $csv_rows ) ) {
+			$limit        = isset( $this->params['limit'] ) ? intval( $this->params['limit'] ) : 60;
+			$limit        = min( $limit, 60 );
+			$page         = 1;
+			$page_index   = isset( $this->params['pageIndex'] ) ? intval( $this->params['pageIndex'] ) : 0;
+			$page_param   = isset( $this->params['page'] ) ? intval( $this->params['page'] ) : 0;
+			$page         = $page_index > 0 ? $page_index : $page;
+			$page         = $page_param > 0 ? $page_param : $page;
+			$page         = max( 1, $page );
+			$offset       = ( $page - 1 ) * $limit;
+			$existing_ids = $this->get_partner_existing_ids();
+			$filtered     = array();
+			$excluded     = 0;
+			$removed      = 0;
+			$invalid      = 0;
+
+			foreach ( $csv_rows as $row ) {
+				$video_id = isset( $row['id'] ) ? (string) $row['id'] : '';
+				if ( '' === $video_id ) {
+					++$invalid;
+					continue;
+				}
+				if ( in_array( $video_id, (array) $existing_ids['partner_existing_videos_ids'], true ) ) {
+					++$excluded;
+					continue;
+				}
+				if ( in_array( $video_id, (array) $existing_ids['partner_unwanted_videos_ids'], true ) ) {
+					++$removed;
+					continue;
+				}
+				$filtered[] = $row;
+			}
+
+			$paged_rows = array_slice( $filtered, $offset, $limit );
+			$videos     = array();
+			$details    = array();
+			foreach ( $paged_rows as $row ) {
+				$video_id = (string) $row['id'];
+				$details  = $this->lvjm_fetch_vpapi_details( $video_id );
+				$video    = array(
+					'id'           => $video_id,
+					'title'        => (string) $row['title'],
+					'desc'         => '',
+					'tags'         => (string) $row['tags'],
+					'duration'     => isset( $details['duration'] ) ? (string) $details['duration'] : '',
+					'thumb_url'    => isset( $details['thumb_url'] ) ? (string) $details['thumb_url'] : '',
+					'thumbs_urls'  => isset( $details['thumbs_urls'] ) ? (array) $details['thumbs_urls'] : array(),
+					'trailer_url'  => isset( $details['trailer_url'] ) ? (string) $details['trailer_url'] : '',
+					'video_url'    => isset( $details['video_url'] ) ? (string) $details['video_url'] : '',
+					'tracking_url' => isset( $details['tracking_url'] ) ? (string) $details['tracking_url'] : '',
+					'quality'      => '',
+					'isHd'         => '',
+					'uploader'     => '',
+					'embed'        => '',
+					'actors'       => (string) $row['performer'],
+					'checked'      => true,
+					'grabbed'      => false,
+				);
+				$videos[] = $this->normalize_video_urls( $video );
+			}
+
+			$videos_details = array();
+			foreach ( $paged_rows as $row ) {
+				$videos_details[] = array(
+					'id'       => (string) $row['id'],
+					'response' => 'Success',
+				);
+			}
+
+			$this->searched_data = array(
+				'videos_details' => $videos_details,
+				'counters'       => array(
+					'valid_videos'    => count( $videos ),
+					'invalid_videos'  => $invalid,
+					'existing_videos' => $excluded,
+					'removed_videos'  => $removed,
+				),
+				'videos'         => $videos,
+			);
+			$this->videos        = $videos;
+
+			$this->debug_importer_log(
+				'Performer CSV search results.',
+				array(
+					'query'            => $query_raw,
+					'matches'          => count( $csv_rows ),
+					'excluded'         => $excluded,
+					'removed'          => $removed,
+					'returned'         => count( $videos ),
+					'page'             => $page,
+					'limit'            => $limit,
+				)
+			);
+
+			return true;
+		}
 
 		list( $tag_value, $orientation ) = $this->normalize_tag_and_orientation( $tag_input );
 		$tag_for_cache                  = '' !== $tag_value ? $tag_value : 'all';
