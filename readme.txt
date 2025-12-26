@@ -13,7 +13,7 @@
 
 == Debugging ==
 To enable importer debug logs, define `LVJM_DEBUG_IMPORTER` as `true` in `wp-config.php`.
-Performer searches cache the detected VPAPI filter parameter in `lvjm_vpapi_perf_filter_param` (1 day) and matched results in `lvjm_perf_{orientation}_{tag-or-all}_{normalized_performer}` (6 hours).
+Performer searches cache the detected VPAPI filter parameter in `lvjm_vpapi_perf_filter_param_v2` (1 day) and matched results in `lvjm_perf_v2_{orientation}_{tag-or-all}_{normalized_performer}` (6 hours, 10 minutes when empty).
 
 == Changelog ==
 = 1.3.2 = 2025-07-28

@@ -22,6 +22,14 @@ function lvjm_search_videos( $params = '' ) {
 	if ( $ajax_call ) {
 		check_ajax_referer( 'ajax-nonce', 'nonce' );
 		$params = $_POST;
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			WPSCORE()->write_log(
+				'info',
+				'[TMW-IMPORTER] Incoming AJAX payload ' . wp_json_encode( $params ),
+				__FILE__,
+				__LINE__
+			);
+		}
 	}
 
 	$search_videos = new LVJM_Search_Videos( $params );

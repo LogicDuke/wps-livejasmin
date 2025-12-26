@@ -285,6 +285,36 @@ class LVJM_Search_Videos {
 	}
 
 	/**
+	 * Log a sample of feed items for debugging.
+	 *
+	 * @param array $items Feed items.
+	 * @param array $context Context data.
+	 * @return void
+	 */
+	private function log_feed_item_samples( $items, $context = array() ) {
+		if ( ! defined( 'LVJM_DEBUG_IMPORTER' ) || ! LVJM_DEBUG_IMPORTER ) {
+			return;
+		}
+		$samples = array();
+		foreach ( array_slice( (array) $items, 0, 5 ) as $item ) {
+			$item      = (array) $item;
+			$samples[] = array(
+				'performerId'  => isset( $item['performerId'] ) ? $item['performerId'] : null,
+				'performer_id' => isset( $item['performer_id'] ) ? $item['performer_id'] : null,
+				'performer'    => isset( $item['performer'] ) ? $item['performer'] : null,
+				'model'        => isset( $item['model'] ) ? $item['model'] : null,
+				'modelName'    => isset( $item['modelName'] ) ? $item['modelName'] : null,
+				'uploader'     => isset( $item['uploader'] ) ? $item['uploader'] : null,
+				'uploaderId'   => isset( $item['uploaderId'] ) ? $item['uploaderId'] : null,
+			);
+		}
+		if ( empty( $samples ) ) {
+			return;
+		}
+		$this->debug_importer_log( 'Performer search sample items.', array_merge( $context, array( 'samples' => $samples ) ) );
+	}
+
+	/**
 	 * Normalize a performer id for matching.
 	 *
 	 * @param string $performer_id Performer id.
@@ -489,7 +519,7 @@ class LVJM_Search_Videos {
 		list( $tag_value, $orientation ) = $this->normalize_tag_and_orientation( $tag_input );
 		$tag_for_cache                  = '' !== $tag_value ? $tag_value : 'all';
 		// Cache key includes orientation + tag (or all) + normalized performer id.
-		$cache_key                      = 'lvjm_perf_' . $orientation . '_' . $this->normalize_cache_component( $tag_for_cache ) . '_' . $normalized_performer;
+		$cache_key                      = 'lvjm_perf_v2_' . $orientation . '_' . $this->normalize_cache_component( $tag_for_cache ) . '_' . $normalized_performer;
 		$cached                         = get_transient( $cache_key );
 		if ( is_array( $cached ) && isset( $cached['videos'], $cached['searched_data'] ) ) {
 			$this->videos        = $cached['videos'];
@@ -511,6 +541,12 @@ class LVJM_Search_Videos {
 		$videos_details        = array();
 		$count_valid_feed_items = 0;
 		$end                   = false;
+		$max_scan_items        = 3600;
+		$max_pages             = 10;
+		$max_pages_hard        = 30;
+		$start_time            = microtime( true );
+		$time_budget           = 25;
+		$matched_items         = 0;
 
 		$args = array(
 			'timeout'   => 300,
@@ -557,8 +593,9 @@ class LVJM_Search_Videos {
 		$root_feed_url = '';
 		$first_body    = null;
 		$attempted_urls = array();
+		$path_used      = 'fallback_scan';
 
-		$cached_filter_param = get_transient( 'lvjm_vpapi_perf_filter_param' );
+		$cached_filter_param = get_transient( 'lvjm_vpapi_perf_filter_param_v2' );
 		if ( $cached_filter_param && 'none' !== $cached_filter_param ) {
 			$candidate_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags, $cached_filter_param, $performer_raw );
 			$attempted_urls[] = $candidate_url;
@@ -570,6 +607,7 @@ class LVJM_Search_Videos {
 				$filter_used   = $cached_filter_param;
 				$root_feed_url = $candidate_url;
 				$first_body    = $body;
+				$path_used     = 'filter_param';
 			} else {
 				$cached_filter_param = false;
 			}
@@ -590,22 +628,34 @@ class LVJM_Search_Videos {
 					$filter_used   = $filter_param;
 					$root_feed_url = $candidate_url;
 					$first_body    = $body;
+					$path_used     = 'filter_param';
 					break;
 				}
 			}
-			set_transient( 'lvjm_vpapi_perf_filter_param', '' !== $filter_used ? $filter_used : 'none', DAY_IN_SECONDS );
+			set_transient( 'lvjm_vpapi_perf_filter_param_v2', '' !== $filter_used ? $filter_used : 'none', DAY_IN_SECONDS );
 		}
 
 		if ( '' === $root_feed_url ) {
 			$root_feed_url = $this->build_feed_url_for_performer( $tag_value, $orientation, $omit_tags );
 			$attempted_urls[] = $root_feed_url;
 			$this->debug_importer_log( 'Performer fallback scan enabled (no server-side filter param).' );
+		} else {
+			$this->debug_importer_log( 'Performer filter param selected.', array( 'filter_param' => $filter_used ) );
 		}
 
 		$pages_fetched = 0;
 		$scanned_items = 0;
-		$max_scan_items = 1200;
 		while ( false === $end ) {
+			if ( ( microtime( true ) - $start_time ) >= $time_budget ) {
+				$this->debug_importer_log(
+					'Performer search time budget exceeded.',
+					array(
+						'pages_fetched' => $pages_fetched,
+						'scanned_items' => $scanned_items,
+					)
+				);
+				break;
+			}
 			if ( 0 === $pages_fetched && is_array( $first_body ) ) {
 				$response_body = $first_body;
 			} else {
@@ -644,6 +694,15 @@ class LVJM_Search_Videos {
 				} else {
 					$array_feed = $response_body['data'];
 				}
+				if ( 0 === $pages_fetched ) {
+					$this->log_feed_item_samples(
+						(array) $array_feed,
+						array(
+							'page' => $current_page,
+							'url'  => '' !== $paged ? $root_feed_url . $paged . $current_page : $root_feed_url,
+						)
+					);
+				}
 				$count_total_feed_items = count( $array_feed );
 				$current_item           = 0;
 				$page_end               = false;
@@ -678,6 +737,7 @@ class LVJM_Search_Videos {
 						);
 						++$counters['valid_videos'];
 						++$count_valid_feed_items;
+						++$matched_items;
 					} elseif ( in_array( $feed_item->get_id(), (array) $existing_ids['partner_existing_videos_ids'], true ) ) {
 						$videos_details[] = array(
 							'id'       => $feed_item->get_id(),
@@ -713,8 +773,13 @@ class LVJM_Search_Videos {
 				++$current_item;
 			}
 			++$pages_fetched;
-			if ( $pages_fetched >= 10 ) {
-				$end = true;
+			if ( $pages_fetched >= $max_pages ) {
+				if ( 0 === $matched_items && $max_pages < $max_pages_hard ) {
+					$max_pages = $max_pages_hard;
+					$this->debug_importer_log( 'Performer search expanding scan pages.', array( 'max_pages' => $max_pages ) );
+				} else {
+					$end = true;
+				}
 			}
 		}
 
@@ -725,14 +790,25 @@ class LVJM_Search_Videos {
 		);
 		$this->videos        = $array_valid_videos;
 
-		set_transient(
-			$cache_key,
-			array(
-				'videos'        => $this->videos,
-				'searched_data' => $this->searched_data,
-			),
-			6 * HOUR_IN_SECONDS
-		);
+		if ( ! empty( $this->videos ) ) {
+			set_transient(
+				$cache_key,
+				array(
+					'videos'        => $this->videos,
+					'searched_data' => $this->searched_data,
+				),
+				6 * HOUR_IN_SECONDS
+			);
+		} else {
+			set_transient(
+				$cache_key,
+				array(
+					'videos'        => $this->videos,
+					'searched_data' => $this->searched_data,
+				),
+				10 * MINUTE_IN_SECONDS
+			);
+		}
 
 		$this->debug_importer_log(
 			'Performer search completed.',
@@ -741,9 +817,11 @@ class LVJM_Search_Videos {
 				'tag'           => $tag_value,
 				'orientation'   => $orientation,
 				'filter_param'  => $filter_used,
+				'path_used'     => $path_used,
 				'pages_fetched' => $pages_fetched,
 				'scanned_items' => $scanned_items,
 				'results'       => count( $this->videos ),
+				'attempted_urls' => array_slice( $attempted_urls, -3 ),
 			)
 		);
 
@@ -753,6 +831,9 @@ class LVJM_Search_Videos {
 				array(
 					'filter_param'   => '' !== $filter_used ? $filter_used : 'fallback_scan',
 					'attempted_urls' => array_slice( $attempted_urls, -3 ),
+					'pages_fetched'  => $pages_fetched,
+					'scanned_items'  => $scanned_items,
+					'time_budget_s'  => $time_budget,
 				)
 			);
 		}
