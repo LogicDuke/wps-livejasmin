@@ -28,7 +28,7 @@ function lvjm_delete_post( $post_id ) {
 				unset( $removed_videos_ids[ $partner_id ][ $video_key ] );
 				$removed_videos_ids[ $partner_id ] = array_values( $removed_videos_ids[ $partner_id ] );
 				WPSCORE()->update_product_option( 'LVJM', 'removed_videos_ids', $removed_videos_ids );
-				WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-UNREMOVE] video_id ' . $video_id . ' removed from removed_videos_ids on post delete', __FILE__, __LINE__ );
+				WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-UNREMOVE] video_id=' . $video_id . ' removed from removed_videos_ids due to WP deletion', __FILE__, __LINE__ );
 			}
 		}
 	}
@@ -65,6 +65,27 @@ function lvjm_delete_post( $post_id ) {
 	return true;
 }
 add_action( 'before_delete_post', 'lvjm_delete_post' );
+
+/**
+ * Handle manual reset of removed LiveJasmin video IDs.
+ *
+ * @return void
+ */
+function lvjm_reset_removed_videos_manual() {
+	if ( ! is_admin() || ! isset( $_POST['lvjm_reset_removed_videos'] ) ) {
+		return;
+	}
+
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	check_admin_referer( 'lvjm_reset_removed_videos_action', 'lvjm_reset_removed_videos_nonce' );
+
+	WPSCORE()->update_product_option( 'LVJM', 'removed_videos_ids', array() );
+	WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-RESET] removed_videos_ids cleared manually', __FILE__, __LINE__ );
+}
+add_action( 'admin_init', 'lvjm_reset_removed_videos_manual' );
 
 /**
  * Callback for xbox_before_save_field action / lvjm-enable-auto-import option.
