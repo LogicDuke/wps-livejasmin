@@ -6,6 +6,16 @@ window.addEventListener('load', LVJM_pageImportVideos, false);
 function LVJM_pageImportVideos() {
 
     if (document.getElementById('import-videos')) {
+        var performerLabelText = 'Search by Model (performerId or username)';
+        var performerHelpText = 'Enter performerId (number) or username (text).';
+        var performerOption = document.querySelector('#search_mode option[value="performer"]');
+        if (performerOption) {
+            performerOption.textContent = performerLabelText;
+        }
+        var performerInput = document.getElementById('performer_s');
+        if (performerInput) {
+            performerInput.setAttribute('placeholder', performerHelpText);
+        }
 
         jQuery('body').tooltip({
             selector: '[rel=tooltip]',
@@ -272,7 +282,7 @@ function LVJM_pageImportVideos() {
                 searchButtonTooltip: function () {
                     self = this;
                     if (this.searchMode === 'performer') {
-                        return this.selectedPerformer !== '' ? '' : 'Enter a performerId to search.';
+                        return this.selectedPerformer !== '' ? '' : 'Enter performerId (number) or username (text).';
                     }
                     if( this.selectedCat !== '' || this.selectedKW !== '' ) return '';
 
