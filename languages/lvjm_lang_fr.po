@@ -1,0 +1,427 @@
+# Copyright (C) 2025 WPS LiveJasmin
+# This file is distributed under the same license as the WPS LiveJasmin package.
+msgid ""
+msgstr ""
+"Project-Id-Version: WPS LiveJasmin\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2025-07-28 08:19+0000\n"
+"X-Poedit-Basepath: ..\n"
+"X-Poedit-KeywordsList: __;_e;_ex:1,2c;_n:1,2;_n_noop:1,2;_nx:1,2,4c;_nx_noop:1,2,3c;_x:1,2c;esc_attr__;esc_attr_e;esc_attr_x:1,2c;esc_html__;esc_html_e;esc_html_x:1,2c\n"
+"X-Poedit-SearchPath-0: .\n"
+"X-Poedit-SearchPathExcluded-0: *.js\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language: \n"
+"Language-Team: \n"
+
+#: ../wps-livejasmin.php:52, ../wps-livejasmin.php:61
+msgid "Do not clone or wake up this class"
+msgstr "Ne pas cloner ou réveiller cette classe"
+
+#: ../wps-livejasmin.php:571
+msgid "An error occured during the suppression:"
+msgstr "Une erreur s'est produite pendant la suppression :"
+
+#: ../wps-livejasmin.php:572, ../admin/pages/page-import-videos.php:216
+msgid "Select a WordPress category"
+msgstr "Sélectionner un mot Catégorie de presse"
+
+#: ../wps-livejasmin.php:573
+msgid "Select a category from"
+msgstr "Sélectionnez une catégorie"
+
+#: ../wps-livejasmin.php:574
+msgid "or a keyword (if it is available)"
+msgstr "ou un mot clé (s'il est disponible)"
+
+#: ../wps-livejasmin.php:575
+msgid "AND"
+msgstr "PAYS"
+
+#: ../wps-livejasmin.php:576
+msgid "Check at least 1 video"
+msgstr "Vérifiez au moins 1 vidéo"
+
+#: ../wps-livejasmin.php:577
+msgid "to enable this button"
+msgstr "pour activer ce bouton"
+
+#: ../wps-livejasmin.php:578, ../admin/pages/page-import-videos.php:209, ../admin/pages/page-import-videos.php:229
+msgid "Import"
+msgstr "Importation"
+
+#: ../wps-livejasmin.php:579
+msgid "videos and save this search as a Feed. All your Feeds are displayed at the bottom of this page."
+msgstr "vidéos et enregistrer cette recherche comme un flux. Tous vos flux sont affichés au bas de cette page."
+
+#: ../public/actions.php:128, ../public/actions.php:131
+msgid "This video is not available in your country"
+msgstr "Cette vidéo n'est pas disponible dans votre pays"
+
+#: ../admin/pages/page-import-videos.php:28, ../admin/pages/page-options-x.php:30
+msgid "Import videos"
+msgstr "Importer des vidéos"
+
+#: ../admin/pages/page-import-videos.php:30, ../admin/pages/page-options-x.php:32
+msgid "Options"
+msgstr "Options"
+
+#: ../admin/pages/page-import-videos.php:35
+msgid "Loading Page"
+msgstr "Chargement de la page"
+
+#: ../admin/pages/page-import-videos.php:43
+msgid "Loading Data"
+msgstr "Chargement des données"
+
+#: ../admin/pages/page-import-videos.php:52
+msgid "Searching new videos from this Saved Feed"
+msgstr "Recherche de nouvelles vidéos à partir de ce flux sauvegardé"
+
+#: ../admin/pages/page-import-videos.php:57
+msgid "Search videos to import"
+msgstr "Recherche de vidéos à importer"
+
+#: ../admin/pages/page-import-videos.php:58, ../admin/pages/page-import-videos.php:63
+msgid "Configure"
+msgstr "Configuration"
+
+#: ../admin/pages/page-import-videos.php:63
+msgid "to use it"
+msgstr "pour l'utiliser"
+
+#: ../admin/pages/page-import-videos.php:79
+msgid "Configuration"
+msgstr "Configuration"
+
+#: ../admin/pages/page-import-videos.php:80
+msgid "Informations"
+msgstr "Informations"
+
+#: ../admin/pages/page-import-videos.php:90, ../admin/pages/page-import-videos.php:297, ../admin/pages/page-import-videos.php:321, ../admin/pages/page-import-videos.php:441
+msgid "Description"
+msgstr "Désignation des marchandises"
+
+#: ../admin/pages/page-import-videos.php:93
+msgid "Niches"
+msgstr "Mèches"
+
+#: ../admin/pages/page-import-videos.php:105
+msgid "Videos Details"
+msgstr "Vidéos Détails"
+
+#: ../admin/pages/page-import-videos.php:107
+msgid "Language(s)"
+msgstr "Langue(s)"
+
+#: ../admin/pages/page-import-videos.php:108
+msgid "HTTPS ready"
+msgstr "HTTPS prêt"
+
+#: ../admin/pages/page-import-videos.php:108, ../admin/pages/page-import-videos.php:109, ../admin/pages/page-import-videos.php:110, ../admin/pages/page-import-videos.php:111, ../admin/pages/page-import-videos.php:112, ../admin/pages/page-import-videos.php:114
+msgid "Yes"
+msgstr "Oui"
+
+#: ../admin/pages/page-import-videos.php:108, ../admin/pages/page-import-videos.php:109, ../admin/pages/page-import-videos.php:110, ../admin/pages/page-import-videos.php:111, ../admin/pages/page-import-videos.php:112, ../admin/pages/page-import-videos.php:114
+msgid "No"
+msgstr "Numéro"
+
+#: ../admin/pages/page-import-videos.php:109
+msgid "Mobile ready"
+msgstr "Mobile prêt"
+
+#: ../admin/pages/page-import-videos.php:110
+msgid "Mobile Redirection"
+msgstr "Rédirection mobile"
+
+#: ../admin/pages/page-import-videos.php:111
+msgid "Multiple Thumbnails"
+msgstr "Thumbnails multiples"
+
+#: ../admin/pages/page-import-videos.php:112, ../admin/pages/page-import-videos.php:406
+msgid "Trailer"
+msgstr "Remorque"
+
+#: ../admin/pages/page-import-videos.php:113
+msgid "Orientation(s)"
+msgstr "Orientation(s)"
+
+#: ../admin/pages/page-import-videos.php:114
+msgid "Actors List"
+msgstr "Liste des acteurs"
+
+#: ../admin/pages/page-import-videos.php:116
+msgid "Payment Details"
+msgstr "Détails du paiement"
+
+#: ../admin/pages/page-import-videos.php:118
+msgid "Devise(s)"
+msgstr "Conception(s)"
+
+#: ../admin/pages/page-import-videos.php:119
+msgid "Payment(s)"
+msgstr "Paiement(s)"
+
+#: ../admin/pages/page-import-videos.php:120
+msgid "Program(s)"
+msgstr "Programmes"
+
+#: ../admin/pages/page-import-videos.php:140
+msgid "Select a niche from"
+msgstr "Sélectionnez une niche"
+
+#: ../admin/pages/page-import-videos.php:146, ../admin/pages/page-import-videos.php:179
+msgid "OR"
+msgstr "OU"
+
+#: ../admin/pages/page-import-videos.php:146
+msgid "Enter some keywords"
+msgstr "Saisissez quelques mots clés"
+
+#: ../admin/pages/page-import-videos.php:146
+msgid "eg. ebony lesbian"
+msgstr "par exemple : lesbiennes ébène"
+
+#: ../admin/pages/page-import-videos.php:154
+msgid "Search done!"
+msgstr "Recherche faite !"
+
+#: ../admin/pages/page-import-videos.php:156
+msgid "Search videos"
+msgstr "Recherche de vidéos"
+
+#: ../admin/pages/page-import-videos.php:157
+msgid "Searching videos..."
+msgstr "Recherche de vidéos..."
+
+#. translators: %s: number of videos in the search results
+#: ../admin/pages/page-import-videos.php:159
+msgid "Each search displays up to %s unique videos at a time and excludes any videos already imported."
+msgstr "Chaque recherche affiche jusqu'à %s des vidéos uniques à la fois et exclut les vidéos déjà importées."
+
+#: ../admin/pages/page-import-videos.php:172, ../admin/pages/page-import-videos.php:184, ../admin/pages/page-import-videos.php:354, ../admin/pages/page-import-videos.php:532, ../admin/pages/page-import-videos.php:597, ../admin/pages/page-import-videos.php:620
+msgid "Close"
+msgstr "Fermer"
+
+#: ../admin/pages/page-import-videos.php:177
+msgid "No video found"
+msgstr "Aucune vidéo trouvée"
+
+#: ../admin/pages/page-import-videos.php:178
+msgid "All videos may have been already imported for the current search or via other imports with"
+msgstr "Toutes les vidéos peuvent avoir déjà été importées pour la recherche en cours ou via d'autres importations avec"
+
+#: ../admin/pages/page-import-videos.php:180
+msgid "There is unfortunately no video for this search"
+msgstr "Il n'y a malheureusement pas de vidéo pour cette recherche"
+
+#: ../admin/pages/page-import-videos.php:183
+msgid "Details"
+msgstr "Détails"
+
+#: ../admin/pages/page-import-videos.php:193
+msgid "Search results"
+msgstr "Résultats de la recherche"
+
+#: ../admin/pages/page-import-videos.php:195
+msgid "new videos found with"
+msgstr "nouvelles vidéos trouvées avec"
+
+#: ../admin/pages/page-import-videos.php:197
+msgid "See details"
+msgstr "Voir détails"
+
+#: ../admin/pages/page-import-videos.php:202
+msgid "Check all videos"
+msgstr "Vérifiez toutes les vidéos"
+
+#: ../admin/pages/page-import-videos.php:202
+msgid "Uncheck all videos"
+msgstr "Décochez toutes les vidéos"
+
+#: ../admin/pages/page-import-videos.php:206, ../admin/pages/page-import-videos.php:226
+msgid "videos imported in"
+msgstr "vidéos importées dans"
+
+#: ../admin/pages/page-import-videos.php:209, ../admin/pages/page-import-videos.php:229
+msgid "videos in"
+msgstr "vidéos dans"
+
+#: ../admin/pages/page-import-videos.php:212
+msgid "Hide current imported videos and search new videos"
+msgstr "Cacher les vidéos importées actuelles et rechercher de nouvelles vidéos"
+
+#: ../admin/pages/page-import-videos.php:212
+msgid "Refresh search results"
+msgstr "Actualiser les résultats de recherche"
+
+#: ../admin/pages/page-import-videos.php:218
+msgid "Add a new category"
+msgstr "Ajouter une nouvelle catégorie"
+
+#: ../admin/pages/page-import-videos.php:236
+msgid "Display search results as cards"
+msgstr "Afficher les résultats de la recherche comme cartes"
+
+#: ../admin/pages/page-import-videos.php:237
+msgid "Display search results as a list"
+msgstr "Afficher les résultats de la recherche comme une liste"
+
+#: ../admin/pages/page-import-videos.php:239
+msgid "Close search results and make a new search"
+msgstr "Fermer les résultats de la recherche et faire une nouvelle recherche"
+
+#: ../admin/pages/page-import-videos.php:246
+msgid "Import done!"
+msgstr "Importation faite !"
+
+#: ../admin/pages/page-import-videos.php:252, ../admin/pages/page-import-videos.php:415
+msgid "Embed Code does NOT work with SSL (HTTPS://)"
+msgstr "Embed Code ne fonctionne PAS avec SSL (HTTPS://)"
+
+#: ../admin/pages/page-import-videos.php:273
+msgid "Check to import this video"
+msgstr "Vérifiez pour importer cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:276, ../admin/pages/page-import-videos.php:335
+msgid "Edit this video"
+msgstr "Modifier cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:281, ../admin/pages/page-import-videos.php:338
+msgid "Remove this video"
+msgstr "Supprimer cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:285, ../admin/pages/page-import-videos.php:311
+msgid "Video imported"
+msgstr "Vidéo importée"
+
+#: ../admin/pages/page-import-videos.php:295
+msgid "Thumb"
+msgstr "Jeu"
+
+#: ../admin/pages/page-import-videos.php:296, ../admin/pages/page-import-videos.php:315, ../admin/pages/page-import-videos.php:393
+msgid "Title"
+msgstr "Titre"
+
+#: ../admin/pages/page-import-videos.php:298
+msgid "Tags and Actors"
+msgstr "Étiquettes et acteurs"
+
+#: ../admin/pages/page-import-videos.php:325
+msgid "Actors"
+msgstr "Acteurs"
+
+#: ../admin/pages/page-import-videos.php:329
+msgid "Tags"
+msgstr "Étiquettes"
+
+#: ../admin/pages/page-import-videos.php:355
+msgid "Add a new WordPress Category"
+msgstr "Ajouter une nouvelle catégorie WordPress"
+
+#: ../admin/pages/page-import-videos.php:361
+msgid "Name"
+msgstr "Nom"
+
+#: ../admin/pages/page-import-videos.php:373
+msgid "Adding"
+msgstr "Ajout"
+
+#: ../admin/pages/page-import-videos.php:376
+msgid "Add New Category"
+msgstr "Ajouter une nouvelle catégorie"
+
+#: ../admin/pages/page-import-videos.php:404
+msgid "Video data"
+msgstr "Données vidéo"
+
+#: ../admin/pages/page-import-videos.php:405
+msgid "Thumbnails"
+msgstr "Thumbnails"
+
+#. translators: %s: link to wp-script.com themes
+#: ../admin/pages/page-import-videos.php:463
+msgid "The thumbnails are used by %1$s to display a preview thumbnails rotation when hovering a video thumbnail."
+msgstr "Les vignettes sont utilisées par %1$s pour afficher une rotation des vignettes de prévisualisation en survolant une vignette vidéo."
+
+#. translators: %s: link to wp-script.com themes
+#: ../admin/pages/page-import-videos.php:488
+msgid "The trailers are used by %1$s to display a preview video when hovering a video thumbnail."
+msgstr "Les bandes-annonces sont utilisées par %1$s pour afficher une vidéo de prévisualisation en survolant une vignette vidéo."
+
+#: ../admin/pages/page-import-videos.php:511
+msgid "Check this video"
+msgstr "Regardez cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:511
+msgid "Uncheck this video"
+msgstr "Décochez cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:512
+msgid "Video grabbed"
+msgstr "Vidéo prise"
+
+#: ../admin/pages/page-import-videos.php:533
+msgid "Search results details"
+msgstr "Détails des résultats de la recherche"
+
+#: ../admin/pages/page-import-videos.php:570
+msgid "Saved Feeds"
+msgstr "Flux enregistrés"
+
+#: ../admin/pages/page-import-videos.php:575
+msgid "What are Saved Feeds?"
+msgstr "Que sont les aliments sauvés?"
+
+#: ../admin/pages/page-import-videos.php:583
+msgid "Whenever you import videos from a new search, a Feed is saved. A Feed is a saved state, keeping your current search linked to the selected WordPress category. Your feeds are listed just bellow, providing informations and actions for each one."
+msgstr "Chaque fois que vous importez des vidéos d'une nouvelle recherche, un Feed est enregistré. Un flux est un état sauvegardé, gardant votre recherche actuelle liée à la catégorie WordPress sélectionnée. Vos flux sont listés juste en bas, fournissant des informations et des actions pour chacun."
+
+#: ../admin/pages/page-import-videos.php:590
+msgid "No feed has been saved yet"
+msgstr "Aucun aliment n'a encore été enregistré"
+
+#: ../admin/pages/page-import-videos.php:598
+msgid "Deletion confirmation"
+msgstr "Confirmation de suppression"
+
+#: ../admin/pages/page-import-videos.php:602
+msgid "Do you really want to remove this video? It will never be available again."
+msgstr "Voulez-vous vraiment supprimer cette vidéo? Il ne sera plus jamais disponible."
+
+#: ../admin/pages/page-import-videos.php:605
+msgid "Do not show me this confirmation message anymore for this session"
+msgstr "Ne me montrez plus ce message de confirmation pour cette session"
+
+#: ../admin/pages/page-import-videos.php:609
+msgid "Delete this video"
+msgstr "Supprimer cette vidéo"
+
+#: ../admin/pages/page-import-videos.php:609
+msgid "Deleting video"
+msgstr "Supprimer la vidéo"
+
+#: ../admin/pages/page-import-videos.php:609, ../admin/pages/page-import-videos.php:626
+msgid "Cancel"
+msgstr "Annuler"
+
+#: ../admin/pages/page-import-videos.php:621
+msgid "Delete feed confirmation"
+msgstr "Supprimer la confirmation d'alimentation"
+
+#: ../admin/pages/page-import-videos.php:624
+msgid "Do you really want to delete this feed? All videos from this feed will be removed."
+msgstr "Voulez-vous vraiment supprimer ce flux? Toutes les vidéos de ce flux seront supprimées."
+
+#: ../admin/pages/page-import-videos.php:626
+msgid "Delete this feed"
+msgstr "Supprimer ce flux"
+
+#: ../admin/pages/page-import-videos.php:626
+msgid "Deleting feed"
+msgstr "Suppression des aliments pour animaux"
