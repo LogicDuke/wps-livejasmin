@@ -28,6 +28,8 @@ function lvjm_import_videos_page() {
 							<li class="active"><a href="admin.php?page=lvjm-import-videos"><i class="fa fa-cloud-download"></i> <?php esc_html_e( 'Import videos', 'lvjm_lang' ); ?></a></li>
 							<li>|</li>
 							<li><a href="admin.php?page=lvjm-options"><i class="fa fa-wrench"></i> <?php esc_html_e( 'Options', 'lvjm_lang' ); ?></a></li>
+							<li>|</li>
+							<li><a href="admin.php?page=lvjm-tools"><i class="fa fa-shield"></i> <?php esc_html_e( 'Tools', 'lvjm_lang' ); ?></a></li>
 						</ul>
 					</div>
 					<div v-cloak id="search-top" class="padding-top-15">

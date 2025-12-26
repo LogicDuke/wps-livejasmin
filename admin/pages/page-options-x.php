@@ -30,6 +30,8 @@ function lvjm_options_page( $options_table ) {
 						<li><a href="admin.php?page=lvjm-import-videos"><i class="fa fa-cloud-download"></i> ' . esc_html__( 'Import videos', 'lvjm_lang' ) . '</a></li>
 						<li>|</li>
 						<li class="active"><a href="admin.php?page=lvjm-options"><i class="fa fa-wrench"></i> ' . esc_html__( 'Options', 'lvjm_lang' ) . '</a></li>
+						<li>|</li>
+						<li><a href="admin.php?page=lvjm-tools"><i class="fa fa-shield"></i> ' . esc_html__( 'Tools', 'lvjm_lang' ) . '</a></li>
 					</ul>
 				</div>
 			</div>
