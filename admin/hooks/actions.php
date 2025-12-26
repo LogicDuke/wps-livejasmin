@@ -17,6 +17,22 @@ defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
  * @return bool false if feed id from $post_id param does not exist, true in all other cases.
  */
 function lvjm_delete_post( $post_id ) {
+	$video_id   = get_post_meta( $post_id, 'video_id', true );
+	$partner_id = get_post_meta( $post_id, 'partner', true );
+
+	if ( '' !== $video_id && 'livejasmin' === $partner_id ) {
+		$removed_videos_ids = WPSCORE()->get_product_option( 'LVJM', 'removed_videos_ids' );
+		if ( is_array( $removed_videos_ids ) && isset( $removed_videos_ids[ $partner_id ] ) && is_array( $removed_videos_ids[ $partner_id ] ) ) {
+			$video_key = array_search( (string) $video_id, $removed_videos_ids[ $partner_id ], true );
+			if ( false !== $video_key ) {
+				unset( $removed_videos_ids[ $partner_id ][ $video_key ] );
+				$removed_videos_ids[ $partner_id ] = array_values( $removed_videos_ids[ $partner_id ] );
+				WPSCORE()->update_product_option( 'LVJM', 'removed_videos_ids', $removed_videos_ids );
+				WPSCORE()->write_log( 'info', '[TMW-FIX][LVJM-UNREMOVE] video_id ' . $video_id . ' removed from removed_videos_ids due to post deletion', __FILE__, __LINE__ );
+			}
+		}
+	}
+
 	$feed_id = get_post_meta( $post_id, 'feed', true );
 
 	if ( '' === $feed_id ) {
