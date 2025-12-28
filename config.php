@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 /**
  * Define Constants
  */
-define( 'LVJM_VERSION', '1.3.2' );
+define( 'LVJM_VERSION', '1.3.3' );
 define( 'LVJM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'LVJM_URL', plugin_dir_url( __FILE__ ) );
 define( 'LVJM_FILE', __FILE__ );

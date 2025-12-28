@@ -49,10 +49,26 @@ function lvjm_import_video( $params = '' ) {
 		$more_data                       = lvjm_get_embed_and_actors( array( 'video_id' => $params['video_infos']['id'] ) );
 		$params['video_infos']['embed']  = $more_data['embed'];
 		$params['video_infos']['actors'] = empty( $params['video_infos']['actors'] ) ? $more_data['performer_name'] : $params['video_infos']['actors'];
-		$performer_name                  = '';
+		$performer_terms = array();
 		if ( ! empty( $params['video_infos']['actors'] ) ) {
-			$performer_candidates = explode( ',', str_replace( ';', ',', (string) $params['video_infos']['actors'] ) );
-			$performer_name       = trim( (string) reset( $performer_candidates ) );
+			$performer_candidates = preg_split( '/[;,]/', (string) $params['video_infos']['actors'] );
+			$performer_terms      = array_values(
+				array_unique(
+					array_filter(
+						array_map( 'trim', (array) $performer_candidates ),
+						static function ( $value ) {
+							return '' !== $value;
+						}
+					)
+				)
+			);
+		}
+		if ( empty( $performer_terms ) && ! empty( $more_data['performer_name'] ) ) {
+			$performer_terms = array( (string) $more_data['performer_name'] );
+		}
+		$performer_name = '';
+		if ( ! empty( $performer_terms ) ) {
+			$performer_name = (string) $performer_terms[0];
 		}
 
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
@@ -124,8 +140,11 @@ function lvjm_import_video( $params = '' ) {
 		}
 		// Audit note: Search-by-Model imports currently only attach performers via the actors taxonomy.
 		// There is no model CPT relationship meta written here to power /model/ links.
-		if ( ! empty( $params['video_infos']['actors'] ) ) {
-			wp_set_object_terms( $post_id, explode( ',', str_replace( ';', ',', (string) $params['video_infos']['actors'] ) ), LVJM()->call_by_ref( $custom_actors ), false );
+		if ( ! empty( $performer_terms ) ) {
+			wp_set_object_terms( $post_id, $performer_terms, LVJM()->call_by_ref( $custom_actors ), false );
+			if ( taxonomy_exists( 'models' ) ) {
+				wp_set_object_terms( $post_id, $performer_terms, 'models', false );
+			}
 		}
 		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
 			$model_post = null;

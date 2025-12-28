@@ -5,7 +5,7 @@
  * Description: Import LiveJasmin livecam embed videos in your WordPress posts
  * Author: WP-Script
  * Author URI: https://www.wp-script.com
- * Version: 1.3.2
+ * Version: 1.3.3
  * Text Domain: wps-livejasmin
  * Domain Path: /languages
  *
@@ -690,3 +690,108 @@ if ( ! function_exists( 'LVJM' ) ) {
 	}
 	LVJM();
 }
+
+/**
+ * Get binding configuration for video taxonomies.
+ *
+ * @return array
+ */
+function lvjm_get_video_taxonomy_binding_config() {
+	if ( ! function_exists( 'xbox_get_field_value' ) ) {
+		return array();
+	}
+
+	$post_type = xbox_get_field_value( 'lvjm-options', 'custom-video-post-type' );
+	if ( '' === $post_type ) {
+		$post_type = 'post';
+	}
+
+	if ( ! post_type_exists( $post_type ) ) {
+		return array();
+	}
+
+	$cats = xbox_get_field_value( 'lvjm-options', 'custom-video-categories' );
+	if ( '' === $cats ) {
+		$cats = 'category';
+	}
+
+	$tags = xbox_get_field_value( 'lvjm-options', 'custom-video-tags' );
+	if ( '' === $tags ) {
+		$tags = 'post_tag';
+	}
+
+	$actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
+	if ( '' === $actors ) {
+		$actors = 'actors';
+	}
+
+	$taxonomies = array( $cats, $tags, $actors );
+	if ( taxonomy_exists( 'models' ) ) {
+		$taxonomies[] = 'models';
+	}
+
+	return array(
+		'post_type'  => $post_type,
+		'taxonomies' => $taxonomies,
+	);
+}
+
+/**
+ * Bind selected taxonomies to the configured post type.
+ *
+ * @return void
+ */
+function lvjm_bind_video_taxonomies() {
+	$config = lvjm_get_video_taxonomy_binding_config();
+	if ( empty( $config ) ) {
+		return;
+	}
+
+	foreach ( $config['taxonomies'] as $taxonomy ) {
+		if ( taxonomy_exists( $taxonomy ) && ! is_object_in_taxonomy( $config['post_type'], $taxonomy ) ) {
+			register_taxonomy_for_object_type( $taxonomy, $config['post_type'] );
+		}
+	}
+}
+
+/**
+ * Bind video taxonomies when the post type is registered.
+ *
+ * @param string $post_type Post type being registered.
+ * @return void
+ */
+function lvjm_handle_registered_post_type( $post_type ) {
+	$config = lvjm_get_video_taxonomy_binding_config();
+	if ( empty( $config ) ) {
+		return;
+	}
+
+	if ( $post_type !== $config['post_type'] ) {
+		return;
+	}
+
+	lvjm_bind_video_taxonomies();
+}
+
+/**
+ * Bind video taxonomies when a taxonomy is registered.
+ *
+ * @param string $taxonomy Taxonomy being registered.
+ * @return void
+ */
+function lvjm_handle_registered_taxonomy( $taxonomy ) {
+	$config = lvjm_get_video_taxonomy_binding_config();
+	if ( empty( $config ) ) {
+		return;
+	}
+
+	if ( ! in_array( $taxonomy, $config['taxonomies'], true ) ) {
+		return;
+	}
+
+	lvjm_bind_video_taxonomies();
+}
+
+add_action( 'init', 'lvjm_bind_video_taxonomies', 200 );
+add_action( 'registered_post_type', 'lvjm_handle_registered_post_type', 10, 1 );
+add_action( 'registered_taxonomy', 'lvjm_handle_registered_taxonomy', 10, 1 );
