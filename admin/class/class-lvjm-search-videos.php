@@ -890,12 +890,20 @@ class LVJM_Search_Videos {
 			$details    = array();
 			foreach ( $paged_rows as $row ) {
 				$video_id = (string) $row['id'];
+				$normalized_tags = lvjm_normalize_tags_array(
+					isset( $row['tags'] ) ? (string) $row['tags'] : '',
+					array(
+						'mode'   => 'performer',
+						'source' => 'csv',
+					)
+				);
+				$tags_display = ! empty( $normalized_tags ) ? implode( ', ', $normalized_tags ) : '';
 				$details  = $this->lvjm_fetch_vpapi_details( $video_id );
 				$video    = array(
 					'id'           => $video_id,
 					'title'        => (string) $row['title'],
 					'desc'         => '',
-					'tags'         => (string) $row['tags'],
+					'tags'         => $tags_display,
 					'duration'     => isset( $details['duration'] ) ? (string) $details['duration'] : '',
 					'thumb_url'    => isset( $details['thumb_url'] ) ? (string) $details['thumb_url'] : '',
 					'thumbs_urls'  => isset( $details['thumbs_urls'] ) ? (array) $details['thumbs_urls'] : array(),
@@ -1190,6 +1198,14 @@ class LVJM_Search_Videos {
 				if ( $feed_item->is_valid() ) {
 					if ( ! in_array( $feed_item->get_id(), (array) $existing_ids['partner_all_videos_ids'], true ) ) {
 						$video_data           = (array) $feed_item->get_data_for_json( $count_valid_feed_items );
+						$normalized_tags      = lvjm_normalize_tags_array(
+							isset( $video_data['tags'] ) ? $video_data['tags'] : '',
+							array(
+								'mode'   => 'performer',
+								'source' => 'feed',
+							)
+						);
+						$video_data['tags']   = ! empty( $normalized_tags ) ? implode( ', ', $normalized_tags ) : '';
 						$array_valid_videos[] = $this->normalize_video_urls( $video_data );
 						$videos_details[]     = array(
 							'id'       => $feed_item->get_id(),
