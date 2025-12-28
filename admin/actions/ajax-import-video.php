@@ -95,7 +95,14 @@ function lvjm_import_video( $params = '' ) {
 		if ( '' === $custom_tags ) {
 			$custom_tags = 'post_tag';
 		}
-		wp_set_object_terms( $post_id, explode( ',', str_replace( ';', ',', (string) $params['video_infos']['tags'] ) ), LVJM()->call_by_ref( $custom_tags ), false );
+		$normalized_tags = lvjm_normalize_tags_array(
+			isset( $params['video_infos']['tags'] ) ? $params['video_infos']['tags'] : '',
+			array(
+				'mode'   => 'import',
+				'source' => 'video_infos',
+			)
+		);
+		wp_set_post_terms( $post_id, $normalized_tags, LVJM()->call_by_ref( $custom_tags ), false );
 		// add actors.
 		$custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
 		if ( '' === $custom_actors ) {
