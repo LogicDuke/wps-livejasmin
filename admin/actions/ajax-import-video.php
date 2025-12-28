@@ -49,6 +49,20 @@ function lvjm_import_video( $params = '' ) {
 		$more_data                       = lvjm_get_embed_and_actors( array( 'video_id' => $params['video_infos']['id'] ) );
 		$params['video_infos']['embed']  = $more_data['embed'];
 		$params['video_infos']['actors'] = empty( $params['video_infos']['actors'] ) ? $more_data['performer_name'] : $params['video_infos']['actors'];
+		$performer_name                  = '';
+		if ( ! empty( $params['video_infos']['actors'] ) ) {
+			$performer_candidates = explode( ',', str_replace( ';', ',', (string) $params['video_infos']['actors'] ) );
+			$performer_name       = trim( (string) reset( $performer_candidates ) );
+		}
+
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			error_log(
+				sprintf(
+					'[LVJM-AUDIT][MODEL] Import performer detected: "%s"',
+					$performer_name
+				)
+			);
+		}
 
 		// add partner id.
 		update_post_meta( $post_id, 'partner', (string) $params['partner_id'] );
@@ -108,8 +122,32 @@ function lvjm_import_video( $params = '' ) {
 		if ( '' === $custom_actors ) {
 			$custom_actors = 'actors';
 		}
+		// Audit note: Search-by-Model imports currently only attach performers via the actors taxonomy.
+		// There is no model CPT relationship meta written here to power /model/ links.
 		if ( ! empty( $params['video_infos']['actors'] ) ) {
 			wp_set_object_terms( $post_id, explode( ',', str_replace( ';', ',', (string) $params['video_infos']['actors'] ) ), LVJM()->call_by_ref( $custom_actors ), false );
+		}
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			$model_post = null;
+			if ( '' !== $performer_name ) {
+				$model_post = get_page_by_title( $performer_name, OBJECT, 'model' );
+			}
+			error_log(
+				sprintf(
+					'[LVJM-AUDIT][MODEL] Model lookup by title "%s" => %s',
+					$performer_name,
+					$model_post ? (string) $model_post->ID : 'not found'
+				)
+			);
+			error_log(
+				sprintf(
+					'[LVJM-AUDIT][LINK] Performer linkage uses taxonomy "%s" via wp_set_object_terms; no model CPT permalink resolution here.',
+					$custom_actors
+				)
+			);
+			error_log(
+				'[LVJM-AUDIT][BIO] No model CPT auto-create routine exists in lvjm_import_video; only actor taxonomy terms are assigned.'
+			);
 		}
 		// add thumbs.
 		foreach ( (array) $params['video_infos']['thumbs_urls'] as $thumb ) {
