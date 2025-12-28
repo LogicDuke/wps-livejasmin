@@ -130,6 +130,9 @@ function lvjm_set_embed_redirect_and_responsiveness( $meta_value, $object_id, $m
                 }
                 if ( ! empty( $more_data['performer_name'] ) ) {
                     wp_add_object_terms( $object_id, $more_data['performer_name'], $custom_actors );
+                    if ( taxonomy_exists( 'models' ) ) {
+                        wp_add_object_terms( $object_id, $more_data['performer_name'], 'models' );
+                    }
                 }
                 return __( 'This video is not available in your country', 'lvjm_lang' );
             } catch ( \Exception $exception ) {
