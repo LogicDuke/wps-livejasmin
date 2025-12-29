@@ -95,5 +95,5 @@ add_action( 'wp_ajax_lvjm_get_embed_and_actors', 'lvjm_get_embed_and_actors' );
  * @return string The performer name (e.g: Lucy Muller).
  */
 function lvjm_get_performer_name_by_id( $performer_id ) {
-	return ucfirst( trim( preg_replace( '/(?<!\ )[A-Z]/', ' $0', $performer_id ) ) );
+	return lvjm_format_performer_display_name( $performer_id );
 }

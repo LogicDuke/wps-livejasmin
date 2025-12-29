@@ -704,6 +704,12 @@ function LVJM_pageImportVideos() {
                     } else {
                         feed_id = cat_wp + '__' + partner_id + '__' + cat_s;
                     }
+                    var existingFeed = lodash.find(this.data.feeds, function (feed) {
+                        return feed.wp_cat == cat_wp && feed.partner_id == partner_id;
+                    });
+                    if (existingFeed) {
+                        feed_id = existingFeed.id;
+                    }
                     this.videos.filter(function (video) {
                         return video.checked;
                     }).forEach(function (video) {
@@ -759,8 +765,9 @@ function LVJM_pageImportVideos() {
                                         .then(function (response) {
                                             // success callback
                                             if (response.body.feed) {
+                                                var responseFeedId = response.body.feed.id ? response.body.feed.id : feed_id;
                                                 var existingIndex = lodash.findIndex(this.data.feeds, function (f) {
-                                                    return f.id == feed_id;
+                                                    return f.id == responseFeedId;
                                                 });
 
                                                 if (existingIndex >= 0) {

@@ -129,9 +129,18 @@ function lvjm_set_embed_redirect_and_responsiveness( $meta_value, $object_id, $m
                     $custom_actors = 'actors';
                 }
                 if ( ! empty( $more_data['performer_name'] ) ) {
-                    wp_add_object_terms( $object_id, $more_data['performer_name'], $custom_actors );
+                    $resolved_performer = lvjm_resolve_performer_term_name(
+                        $more_data['performer_name'],
+                        array_filter(
+                            array(
+                                $custom_actors,
+                                taxonomy_exists( 'models' ) ? 'models' : '',
+                            )
+                        )
+                    );
+                    wp_add_object_terms( $object_id, $resolved_performer, $custom_actors );
                     if ( taxonomy_exists( 'models' ) ) {
-                        wp_add_object_terms( $object_id, $more_data['performer_name'], 'models' );
+                        wp_add_object_terms( $object_id, $resolved_performer, 'models' );
                     }
                 }
                 return __( 'This video is not available in your country', 'lvjm_lang' );

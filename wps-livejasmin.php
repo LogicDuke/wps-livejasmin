@@ -692,6 +692,171 @@ if ( ! function_exists( 'LVJM' ) ) {
 }
 
 /**
+ * Normalize performer names for consistent matching.
+ *
+ * @param string $name Performer name.
+ * @return string Normalized performer key.
+ */
+function lvjm_normalize_performer_key( $name ) {
+	$normalized = strtolower( trim( (string) $name ) );
+	return preg_replace( '/[^a-z0-9]/', '', $normalized );
+}
+
+/**
+ * Format performer names for display/canonical slug creation.
+ *
+ * @param string $name Performer name.
+ * @return string Formatted performer name.
+ */
+function lvjm_format_performer_display_name( $name ) {
+	$name = trim( (string) $name );
+	if ( '' === $name ) {
+		return '';
+	}
+	$name = str_replace( array( '-', '_' ), ' ', $name );
+	$name = preg_replace( '/(?<!\ )[A-Z]/', ' $0', $name );
+	$name = preg_replace( '/\s+/', ' ', $name );
+	return ucwords( $name );
+}
+
+/**
+ * Resolve performer name against existing terms to avoid duplicate profiles.
+ *
+ * @param string $name Performer name.
+ * @param array  $taxonomies Taxonomies to search.
+ * @return string Resolved performer name.
+ */
+function lvjm_resolve_performer_term_name( $name, array $taxonomies ) {
+	$name       = trim( (string) $name );
+	$taxonomies = array_filter( $taxonomies );
+	if ( '' === $name || empty( $taxonomies ) ) {
+		return $name;
+	}
+
+	$normalized = lvjm_normalize_performer_key( $name );
+	if ( '' === $normalized ) {
+		return $name;
+	}
+
+	$search_token = $normalized;
+	if ( strlen( $search_token ) > 4 ) {
+		$search_token = substr( $search_token, 0, 4 );
+	}
+
+	$terms = get_terms(
+		array(
+			'taxonomy'   => $taxonomies,
+			'hide_empty' => false,
+			'search'     => $search_token,
+			'number'     => 25,
+		)
+	);
+	if ( ! is_wp_error( $terms ) ) {
+		foreach ( (array) $terms as $term ) {
+			if ( ! $term instanceof WP_Term ) {
+				continue;
+			}
+			$term_key  = lvjm_normalize_performer_key( $term->name );
+			$slug_key  = lvjm_normalize_performer_key( $term->slug );
+			if ( $term_key === $normalized || $slug_key === $normalized ) {
+				return $term->name;
+			}
+		}
+	}
+
+	return lvjm_format_performer_display_name( $name );
+}
+
+/**
+ * Resolve performer terms array against existing taxonomies.
+ *
+ * @param array $performer_terms Performer terms.
+ * @param array $taxonomies Taxonomies to search.
+ * @return array Resolved performer terms.
+ */
+function lvjm_resolve_performer_terms( array $performer_terms, array $taxonomies ) {
+	$resolved = array();
+	foreach ( $performer_terms as $term ) {
+		$term = lvjm_resolve_performer_term_name( $term, $taxonomies );
+		if ( '' !== $term ) {
+			$resolved[] = $term;
+		}
+	}
+	return array_values( array_unique( $resolved ) );
+}
+
+/**
+ * Resolve a feed id by destination term id.
+ *
+ * @param int|string $wp_cat WordPress term id.
+ * @param string     $partner_id Partner id.
+ * @param string     $fallback_feed_id Feed id provided by request.
+ * @return string Resolved feed id.
+ */
+function lvjm_resolve_feed_id_by_term( $wp_cat, $partner_id, $fallback_feed_id ) {
+	$feeds  = LVJM()->get_feeds();
+	$wp_cat = (int) $wp_cat;
+	foreach ( (array) $feeds as $feed ) {
+		if ( (int) $feed['wp_cat'] !== $wp_cat ) {
+			continue;
+		}
+		if ( '' !== $partner_id && isset( $feed['partner_id'] ) && (string) $feed['partner_id'] !== (string) $partner_id ) {
+			continue;
+		}
+		$resolved_id = (string) $feed['id'];
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER && $resolved_id !== (string) $fallback_feed_id ) {
+			WPSCORE()->write_log(
+				'info',
+				sprintf(
+					'[TMW-FEED] Reusing saved feed %s for term %d (requested %s).',
+					$resolved_id,
+					$wp_cat,
+					(string) $fallback_feed_id
+				),
+				__FILE__,
+				__LINE__
+			);
+		}
+		return $resolved_id;
+	}
+	return (string) $fallback_feed_id;
+}
+
+/**
+ * Extract attachment ID from media HTML or latest attachment for the post.
+ *
+ * @param string $media_html Media HTML.
+ * @param int    $post_id Post id.
+ * @return int Attachment id.
+ */
+function lvjm_resolve_attachment_id_from_media( $media_html, $post_id ) {
+	$media_url = '';
+	if ( is_string( $media_html ) && preg_match( '/src=[\'"]([^\'"]+)/', $media_html, $matches ) ) {
+		$media_url = $matches[1];
+	}
+	if ( '' !== $media_url ) {
+		$attachment_id = attachment_url_to_postid( $media_url );
+		if ( $attachment_id ) {
+			return (int) $attachment_id;
+		}
+	}
+	$attachments = get_posts(
+		array(
+			'post_type'      => 'attachment',
+			'posts_per_page' => 1,
+			'post_status'    => 'any',
+			'post_parent'    => $post_id,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+		)
+	);
+	if ( ! empty( $attachments ) && $attachments[0] instanceof WP_Post ) {
+		return (int) $attachments[0]->ID;
+	}
+	return 0;
+}
+
+/**
  * Get binding configuration for video taxonomies.
  *
  * @return array
