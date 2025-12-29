@@ -29,6 +29,10 @@ function lvjm_update_feed( $params = '' ) {
 		wp_die( 'Some parameters are missing!' );
 	}
 
+	if ( isset( $params['cat_wp'], $params['partner_id'] ) ) {
+		$params['feed_id'] = lvjm_resolve_feed_id_by_term( $params['cat_wp'], $params['partner_id'], $params['feed_id'] );
+	}
+
 	if ( isset( $params['total_videos'] ) && $params['total_videos'] > 0 ) {
 
 		// prepare new feed options to save.

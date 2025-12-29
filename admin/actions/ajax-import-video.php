@@ -26,6 +26,8 @@ function lvjm_import_video( $params = '' ) {
 		wp_die( 'Some parameters are missing!' );
 	}
 
+	$params['feed_id'] = lvjm_resolve_feed_id_by_term( $params['cat_wp'], $params['partner_id'], $params['feed_id'] );
+
 	// get custom post type.
 	$custom_post_type = xbox_get_field_value( 'lvjm-options', 'custom-video-post-type' );
 
@@ -66,6 +68,19 @@ function lvjm_import_video( $params = '' ) {
 		if ( empty( $performer_terms ) && ! empty( $more_data['performer_name'] ) ) {
 			$performer_terms = array( (string) $more_data['performer_name'] );
 		}
+		$custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
+		if ( '' === $custom_actors ) {
+			$custom_actors = 'actors';
+		}
+		$performer_terms = lvjm_resolve_performer_terms(
+			$performer_terms,
+			array_filter(
+				array(
+					$custom_actors,
+					taxonomy_exists( 'models' ) ? 'models' : '',
+				)
+			)
+		);
 		$performer_name = '';
 		if ( ! empty( $performer_terms ) ) {
 			$performer_name = (string) $performer_terms[0];
@@ -134,10 +149,6 @@ function lvjm_import_video( $params = '' ) {
 		);
 		wp_set_post_terms( $post_id, $normalized_tags, LVJM()->call_by_ref( $custom_tags ), false );
 		// add actors.
-		$custom_actors = xbox_get_field_value( 'lvjm-options', 'custom-video-actors' );
-		if ( '' === $custom_actors ) {
-			$custom_actors = 'actors';
-		}
 		// Audit note: Search-by-Model imports currently only attach performers via the actors taxonomy.
 		// There is no model CPT relationship meta written here to power /model/ links.
 		if ( ! empty( $performer_terms ) ) {
@@ -189,29 +200,10 @@ function lvjm_import_video( $params = '' ) {
 			// magic sideload image returns an HTML image, not an ID.
 			$media = LVJM()->media_sideload_image( $default_thumb, $post_id, null, $params['partner_id'] );
 
-			// therefore we must find it so we can set it as featured ID.
 			if ( ! empty( $media ) && ! is_wp_error( $media ) ) {
-				$args = array(
-					'post_type'      => 'attachment',
-					'posts_per_page' => -1,
-					'post_status'    => 'any',
-					'post_parent'    => $post_id,
-				);
-
-				// reference new image to set as featured.
-				$attachments = get_posts( $args );
-				if ( isset( $attachments ) && is_array( $attachments ) ) {
-					foreach ( $attachments as $attachment ) {
-						// grab partner_id of full size images (so no 300x150 nonsense in path).
-						$default_thumb = wp_get_attachment_image_src( $attachment->ID, 'full' );
-						// determine if in the $media image we created, the string of the URL exists.
-						if ( strpos( $media, $default_thumb[0] ) !== false ) {
-							// if so, we found our image. set it as thumbnail.
-							set_post_thumbnail( $post_id, $attachment->ID );
-							// only want one image.
-							break;
-						}
-					}
+				$attachment_id = lvjm_resolve_attachment_id_from_media( $media, $post_id );
+				if ( $attachment_id ) {
+					set_post_thumbnail( $post_id, $attachment_id );
 				}
 			}
 		}
