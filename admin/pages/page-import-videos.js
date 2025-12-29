@@ -360,7 +360,6 @@ function LVJM_pageImportVideos() {
                             this.partnerCats = response.body;
                         }, function (response) {
                             // error callback
-                            console.error(response);
                         }).then(function () {
                             this.partnerCatsLoading = false;
                             setTimeout(function () {
@@ -536,7 +535,6 @@ function LVJM_pageImportVideos() {
                             }
                         }, function (response) {
                             // error callback
-                            console.error(response);
                         }).
                     then(function () {
                         this.videosHasBeenSearched = true;
@@ -569,7 +567,6 @@ function LVJM_pageImportVideos() {
                             }, 300);
                         }, function (response) {
                             // error callback
-                            console.error(response);
                         }).then(function () {
                             jQuery('#add-wp-cat-modal').modal('hide');
                             self.newWpCategoryName = '';
@@ -628,7 +625,6 @@ function LVJM_pageImportVideos() {
                         }, function (response) {
                             // error callback
                             video.loading.removing = false;
-                            console.error(response);
                         }).then(function () {
                             this.loading.removingVideo = false;
                             this.deleteVideo = {};
@@ -738,7 +734,6 @@ function LVJM_pageImportVideos() {
                                 })
                             .then(function (response) {
                                 if (response.body === -1) {
-                                    console.error(response);
                                 }
                                 // success callback
                                 video.grabbed = true;
@@ -748,7 +743,6 @@ function LVJM_pageImportVideos() {
 
                             }, function (response) {
                                 // error callback
-                                console.error(response);
                             }).then(function () {
 
                                 if (--checkedVideosCounter <= 0) {
@@ -787,7 +781,6 @@ function LVJM_pageImportVideos() {
                                             }
                                         }, function (response) {
                                             // error callback
-                                            console.error(response);
                                         }).then(function () {
 
                                             jQuery('#videos-found .progress-bar').addClass('no-anim');
@@ -849,7 +842,6 @@ function LVJM_pageImportVideos() {
                             });
                         }, (response) => {
                             // error callback
-                            console.error(response);
                         }).then(() => {
                             this.loading.deleteFeed = false;
                             this.deleteFeedId = '';
@@ -881,7 +873,6 @@ function LVJM_pageImportVideos() {
 
                     }, (response) => {
                         // error callback
-                        console.error(response);
                     }).then(() => {
                         this.loading.loadingData = false;
                         this.dataLoaded = true;
@@ -911,7 +902,6 @@ function LVJM_pageImportVideos() {
                         // success callback
                     }, (response) => {
                         // error callback
-                        console.error(response);
                     }).then( function() {
                     });
                 });
@@ -1147,7 +1137,6 @@ function LVJM_pageImportVideos() {
                                     this.selectedPartnerObject.is_configured = response.body.is_configured;
                                 }, (response) => {
                                     // error callback
-                                    console.error(response);
                                 }).then(() => {
                                     var self = this;
                                     self.loading.savingOptions = false;
@@ -1294,7 +1283,6 @@ function LVJM_pageImportVideos() {
                                         this.feed.status = newValue;
                                 }, (response) => {
                                     // error callback
-                                    console.error(response);
                                 }).then(() => {
                                     this.loading.savingOptions = this.loading.savingStatus = false;
                                 });
@@ -1317,7 +1305,6 @@ function LVJM_pageImportVideos() {
                                     }
                                 }, (response) => {
                                     // error callback
-                                    console.error(response);
                                 }).then(() => {
                                     this.loading.savingOptions = this.loading.savingAutoImport = false;
                                 });

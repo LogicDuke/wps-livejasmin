@@ -19,18 +19,10 @@ defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 function lvjm_search_videos( $params = '' ) {
 	$ajax_call = '' === $params;
 
-	if ( $ajax_call ) {
-		check_ajax_referer( 'ajax-nonce', 'nonce' );
-		$params = $_POST;
-		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-			WPSCORE()->write_log(
-				'info',
-				'[TMW-IMPORTER] Incoming AJAX payload ' . wp_json_encode( $params ),
-				__FILE__,
-				__LINE__
-			);
-		}
-	}
+        if ( $ajax_call ) {
+                check_ajax_referer( 'ajax-nonce', 'nonce' );
+                $params = $_POST;
+        }
 
 	$search_videos = new LVJM_Search_Videos( $params );
 	$errors        = array();

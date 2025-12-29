@@ -273,23 +273,9 @@ class LVJM_Search_Videos {
 	 * @param array  $context Additional context.
 	 * @return void
 	 */
-	private function debug_importer_log( $message, $context = array() ) {
-		if ( ! defined( 'LVJM_DEBUG_IMPORTER' ) || ! LVJM_DEBUG_IMPORTER ) {
-			return;
-		}
-		$suffix = '';
-		if ( ! empty( $context ) ) {
-			$suffix = ' ' . wp_json_encode( $context );
-		}
-		WPSCORE()->write_log( 'info', '[TMW-IMPORTER] ' . $message . $suffix, __FILE__, __LINE__ );
-		$line_suffix = $suffix;
-		$max_length  = 2000;
-		if ( strlen( $line_suffix ) > $max_length ) {
-			$line_suffix = substr( $line_suffix, 0, $max_length ) . '...';
-		}
-		$line = '[LVJM-DEBUG] ' . $message . $line_suffix;
-		error_log( $line );
-	}
+        private function debug_importer_log( $message, $context = array() ) {
+                return;
+        }
 
 	/**
 	 * Clear performer-related caches when requested.
