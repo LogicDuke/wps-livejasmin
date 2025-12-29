@@ -70,12 +70,25 @@ class LVJM_Item {
 	 *
 	 * @param array $item The item.
 	 * @return array The formatted array ready to be used for a JSON response.
-	 */
-	public static function get_data_for_json( $item ) {
+        */
+        public static function get_data_for_json( $item ) {
 
-		if ( 'off' === xbox_get_field_value( 'lvjm-options', 'import-title' ) ) {
-			$item['title'] = '';
-		}
+                $csv_thumb_data = lvjm_vpapi_main_thumb_for_video_infos( $item );
+                $csv_thumb_url  = isset( $csv_thumb_data['url'] ) ? (string) $csv_thumb_data['url'] : '';
+
+                if ( '' !== $csv_thumb_url ) {
+                        $item['thumb_url'] = $csv_thumb_url;
+
+                        if ( isset( $item['thumbs_urls'] ) ) {
+                                $thumbs_urls = (array) $item['thumbs_urls'];
+                                array_unshift( $thumbs_urls, $csv_thumb_url );
+                                $item['thumbs_urls'] = array_values( array_unique( $thumbs_urls ) );
+                        }
+                }
+
+                if ( 'off' === xbox_get_field_value( 'lvjm-options', 'import-title' ) ) {
+                        $item['title'] = '';
+                }
 		// if ( 'off' === xbox_get_field_value( 'lvjm-options', 'import-description' ) ) {
 		// $item['desc'] = '';
 		// }
