@@ -318,8 +318,8 @@ function lvjm_import_videos_page() {
 																		</td>
 																		<td v-else class="item-list-toggle" width="35"></td>
 																		<td width="100">
-																			<img v-if="!video.grabbed" width="100" v-on:click.prevent="setCurrentVideo(video, index)" class="pointer" src="<?php echo 'lvjm_lang'; ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
-																			<img v-else width="100"  src="<?php echo 'lvjm_lang'; ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" v-bind:alt="video.title" />
+                                                                                                                           <img v-if="!video.grabbed" width="100" v-on:click.prevent="setCurrentVideo(video, index)" class="pointer" src="<?php echo esc_url( LVJM_URL ); ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" data-toggle="modal" data-target="#video-preview-modal" v-bind:alt="video.title" />
+                                                                                                                           <img v-else width="100"  src="<?php echo esc_url( LVJM_URL ); ?>admin/assets/img/loading-thumb.gif" v-img="video.thumb_url" v-bind:alt="video.title" />
 																		</td>
 																		<template v-if="video.grabbed">
 																			<td colspan="3" class="video-td-imported"><?php esc_html_e( 'Video imported', 'lvjm_lang' ); ?></td>

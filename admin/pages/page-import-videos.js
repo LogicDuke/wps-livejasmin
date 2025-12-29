@@ -497,7 +497,14 @@ function LVJM_pageImportVideos() {
                                         title: video.title,
                                         thumb_url: video.thumb_url,
 //                                        thumbs_urls: video.thumbs_urls.split(','),
-                                        thumbs_urls: video.thumbs_urls,
+                                        thumbs_urls: (function(u){
+                                            if (!u) return [];
+                                            if (Array.isArray(u)) return u;
+                                            if (typeof u === 'string') {
+                                                return u.split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+                                            }
+                                            return [];
+                                        })(video.thumbs_urls),
                                         trailer_url: video.trailer_url,
                                         desc: video.desc,
                                         embed: video.embed,
