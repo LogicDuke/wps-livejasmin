@@ -47,24 +47,6 @@ if ( ! function_exists( 'lvjm_normalize_tags_array' ) ) {
 		);
 		$tags = array_values( array_unique( $tags ) );
 
-		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-			$source_suffix = '' !== $source ? ' source=' . $source : '';
-			if ( '|' === $delimiter ) {
-				error_log( '[TMW-TAGS][WARN] pipe-delimited tags detected, normalizing...' );
-			}
-			error_log(
-				sprintf(
-					'[TMW-TAGS] raw="%s" mode=%s delimiter="%s" count=%d%s',
-					$raw_string,
-					$mode,
-					$delimiter,
-					count( $tags ),
-					$source_suffix
-				)
-			);
-			error_log( '[TMW-TAGS] normalized=' . wp_json_encode( $tags ) );
-		}
-
-		return $tags;
-	}
+                return $tags;
+        }
 }

@@ -86,16 +86,7 @@ function lvjm_import_video( $params = '' ) {
 			$performer_name = (string) $performer_terms[0];
 		}
 
-		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-			error_log(
-				sprintf(
-					'[LVJM-AUDIT][MODEL] Import performer detected: "%s"',
-					$performer_name
-				)
-			);
-		}
-
-		$raw_video_id        = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
+                $raw_video_id        = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
 		$resolved_video_id   = lvjm_resolve_vpapi_video_id( $params['video_infos'] );
 		$video_id_candidates = lvjm_vpapi_video_id_candidates( $params['video_infos'] );
 		$api_thumb           = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
@@ -170,30 +161,8 @@ function lvjm_import_video( $params = '' ) {
 				wp_set_object_terms( $post_id, $performer_terms, 'models', false );
 			}
 		}
-		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-			$model_post = null;
-			if ( '' !== $performer_name ) {
-				$model_post = get_page_by_title( $performer_name, OBJECT, 'model' );
-			}
-			error_log(
-				sprintf(
-					'[LVJM-AUDIT][MODEL] Model lookup by title "%s" => %s',
-					$performer_name,
-					$model_post ? (string) $model_post->ID : 'not found'
-				)
-			);
-			error_log(
-				sprintf(
-					'[LVJM-AUDIT][LINK] Performer linkage uses taxonomy "%s" via wp_set_object_terms; no model CPT permalink resolution here.',
-					$custom_actors
-				)
-			);
-			error_log(
-				'[LVJM-AUDIT][BIO] No model CPT auto-create routine exists in lvjm_import_video; only actor taxonomy terms are assigned.'
-			);
-		}
-		// add thumbs.
-		foreach ( (array) $params['video_infos']['thumbs_urls'] as $thumb ) {
+                // add thumbs.
+                foreach ( (array) $params['video_infos']['thumbs_urls'] as $thumb ) {
 			if ( ! empty( $thumb ) ) {
 				add_post_meta( $post_id, 'thumbs', $thumb, false );
 			}
@@ -259,30 +228,7 @@ function lvjm_import_video( $params = '' ) {
 				}
 			}
 
-			if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-				$featured_after_id  = get_post_thumbnail_id( $post_id );
-				$featured_after_url = $featured_after_id ? wp_get_attachment_url( $featured_after_id ) : '';
-				$meta_thumb         = (string) get_post_meta( $post_id, 'thumb', true );
-				error_log(
-					sprintf(
-						'[TMW-THUMB] post=%d raw_id=%s resolved_id=%s candidates=%s csv_hit=%s csv_url=%s match=%s desired=%s api=%s featured_before=%s refreshed=%s featured_after=%s meta_thumb=%s',
-						$post_id,
-						$raw_video_id,
-						$resolved_video_id,
-						implode( ',', $video_id_candidates ),
-						'' !== $csv_url ? 'yes' : 'no',
-						$csv_url,
-						$thumb_match_method,
-						$desired_thumb,
-						$api_thumb,
-						$current_thumb_id ? $current_thumb_id . ':' . $current_thumb_url : 'none',
-						$refreshed,
-						$featured_after_id ? $featured_after_id . ':' . $featured_after_url : 'none',
-						$meta_thumb
-					)
-				);
-			}
-		}
+                }
 
 		// post format video.
 		set_post_format( $post_id, 'video' );
