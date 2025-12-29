@@ -95,10 +95,34 @@ function lvjm_import_video( $params = '' ) {
 			);
 		}
 
+		$video_id   = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
+		$api_thumb  = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
+		$csv_url    = '' !== $video_id ? lvjm_vpapi_main_thumb_url_for_video_id( $video_id ) : '';
+		$thumb_source = 'api';
+		if ( '' !== $csv_url ) {
+			$params['video_infos']['thumb_url'] = $csv_url;
+			$thumb_source                       = 'vpapi_details.csv';
+		}
+
+		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+			$chosen_thumb = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
+			error_log(
+				sprintf(
+					'[TMW-THUMB] video_id=%s csv_hit=%s csv_url=%s api_thumb=%s chosen=%s source=%s',
+					$video_id,
+					'' !== $csv_url ? 'yes' : 'no',
+					$csv_url,
+					$api_thumb,
+					$chosen_thumb,
+					$thumb_source
+				)
+			);
+		}
+
 		// add partner id.
 		update_post_meta( $post_id, 'partner', (string) $params['partner_id'] );
 		// add video id.
-		update_post_meta( $post_id, 'video_id', (string) $params['video_infos']['id'] );
+		update_post_meta( $post_id, 'video_id', $video_id );
 		// add main thumb.
 		update_post_meta( $post_id, 'thumb', (string) $params['video_infos']['thumb_url'] );
 		// add partner_cat.
@@ -202,6 +226,7 @@ function lvjm_import_video( $params = '' ) {
 			$thumb_file_path  = $current_thumb_id ? get_attached_file( $current_thumb_id ) : '';
 			$thumb_missing    = $current_thumb_id && ( '' === $thumb_file_path || ! file_exists( $thumb_file_path ) );
 			$should_refresh   = ! $current_thumb_id || $thumb_missing || $stored_thumb_url !== $default_thumb;
+			$attachment_id    = $current_thumb_id;
 
 			if ( $should_refresh ) {
 				require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -225,6 +250,7 @@ function lvjm_import_video( $params = '' ) {
 			}
 
 			update_post_meta( $post_id, 'lvjm_thumb_url', $default_thumb );
+			update_post_meta( $post_id, 'lvjm_thumb_attachment_id', (int) $attachment_id );
 		}
 
 		// post format video.
