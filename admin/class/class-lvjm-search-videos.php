@@ -387,8 +387,7 @@ class LVJM_Search_Videos {
 	 * @return string Normalized performer name.
 	 */
 	private function lvjm_normalize_performer_name( $name ) {
-		$normalized = strtolower( trim( (string) $name ) );
-		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+		return self::lvjm_normalize_performer_name_value( $name );
 	}
 
 	/**
@@ -403,18 +402,53 @@ class LVJM_Search_Videos {
 	}
 
 	/**
-	 * Find CSV rows by performer name.
+	 * Normalize performer names for CSV lookups.
 	 *
-	 * @param string $performer_query Performer search query.
-	 * @return array|null Matching rows or null on failure.
+	 * @param string $name Performer name.
+	 * @return string Normalized performer name.
 	 */
-	private function lvjm_csv_find_by_performer( $performer_query ) {
-		$normalized_query = $this->lvjm_normalize_performer_name( $performer_query );
-		if ( '' === $normalized_query ) {
-			return null;
+	private static function lvjm_normalize_performer_name_value( $name ) {
+		$normalized = strtolower( trim( (string) $name ) );
+		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+	}
+
+	/**
+	 * Normalize a CSV main thumb URL.
+	 *
+	 * @param string $url URL to normalize.
+	 * @return string Normalized URL.
+	 */
+	private static function lvjm_normalize_csv_main_thumb_url( $url ) {
+		$normalized = trim( (string) $url );
+		if ( '' === $normalized ) {
+			return '';
+		}
+		if ( 0 === strpos( $normalized, '//' ) ) {
+			$normalized = 'https:' . $normalized;
+		}
+		if ( 0 === strpos( $normalized, 'http://' ) ) {
+			$normalized = 'https://' . substr( $normalized, 7 );
+		}
+		if ( '?' === substr( $normalized, -1 ) ) {
+			$normalized = rtrim( $normalized, '?' );
+		}
+		return $normalized;
+	}
+
+	/**
+	 * Load and cache VPAPI details CSV data.
+	 *
+	 * @return array|null Cached CSV data or null on failure.
+	 */
+	private static function lvjm_get_vpapi_details_csv_data() {
+		static $cache = null;
+		if ( null !== $cache ) {
+			return $cache;
 		}
 
-		$csv_path = $this->lvjm_vpapi_csv_path();
+		$upload_dir   = wp_upload_dir();
+		$default_path = trailingslashit( $upload_dir['basedir'] ) . 'lvjm/vpapi_details.csv';
+		$csv_path     = apply_filters( 'lvjm_vpapi_details_csv_path', $default_path );
 		if ( '' === $csv_path || ! is_readable( $csv_path ) ) {
 			return null;
 		}
@@ -424,15 +458,15 @@ class LVJM_Search_Videos {
 			return null;
 		}
 
-		$cache_key = 'lvjm_csv_perf_' . md5( $normalized_query );
+		$cache_key = 'lvjm_vpapi_details_csv_cache';
 		$cached    = get_transient( $cache_key );
-		if ( is_array( $cached ) && isset( $cached['mtime'], $cached['rows'] ) && (int) $cached['mtime'] === (int) $mtime ) {
-			return $cached['rows'];
+		if ( is_array( $cached ) && isset( $cached['mtime'], $cached['rows'], $cached['by_video_id'] ) && (int) $cached['mtime'] === (int) $mtime ) {
+			$cache = $cached;
+			return $cache;
 		}
 
-		$this->debug_importer_log( 'Performer CSV path resolved.', array( 'path' => $csv_path ) );
-
-		$rows = array();
+		$rows        = array();
+		$by_video_id = array();
 		try {
 			$file = new SplFileObject( $csv_path );
 		} catch ( Exception $exception ) {
@@ -449,25 +483,113 @@ class LVJM_Search_Videos {
 				$header_read = true;
 				continue;
 			}
-			$video_id  = isset( $row[0] ) ? trim( (string) $row[0] ) : '';
-			$title     = isset( $row[1] ) ? trim( (string) $row[1] ) : '';
-			$performer = isset( $row[2] ) ? trim( (string) $row[2] ) : '';
-			$tags      = isset( $row[3] ) ? trim( (string) $row[3] ) : '';
+			$video_id           = isset( $row[0] ) ? trim( (string) $row[0] ) : '';
+			$title              = isset( $row[1] ) ? trim( (string) $row[1] ) : '';
+			$performer          = isset( $row[2] ) ? trim( (string) $row[2] ) : '';
+			$tags               = isset( $row[3] ) ? trim( (string) $row[3] ) : '';
+			$main_thumb_url     = isset( $row[4] ) ? trim( (string) $row[4] ) : '';
+			$preferred_thumb_id = isset( $row[5] ) ? trim( (string) $row[5] ) : '';
 
-			$normalized_performer = $this->lvjm_normalize_performer_name( $performer );
+			if ( '' === $video_id ) {
+				continue;
+			}
+
+			$normalized_thumb = self::lvjm_normalize_csv_main_thumb_url( $main_thumb_url );
+			if ( '' !== $normalized_thumb ) {
+				$by_video_id[ $video_id ] = $normalized_thumb;
+			}
+
+			$normalized_performer = self::lvjm_normalize_performer_name_value( $performer );
 			if ( '' === $normalized_performer ) {
 				continue;
 			}
 
-			if ( $normalized_performer !== $normalized_query && false === strpos( $normalized_performer, $normalized_query ) ) {
+			$rows[] = array(
+				'id'                   => $video_id,
+				'title'                => $title,
+				'performer'            => $performer,
+				'tags'                 => $tags,
+				'normalized_performer' => $normalized_performer,
+				'preferred_thumb_id'   => $preferred_thumb_id,
+			);
+		}
+
+		$cache = array(
+			'mtime'       => (int) $mtime,
+			'rows'        => $rows,
+			'by_video_id' => $by_video_id,
+			'path'        => $csv_path,
+		);
+
+		set_transient( $cache_key, $cache, 6 * HOUR_IN_SECONDS );
+
+		return $cache;
+	}
+
+	/**
+	 * Get a main thumb URL from the VPAPI details CSV by video id.
+	 *
+	 * @param string $video_id Video id.
+	 * @return string Main thumb URL.
+	 */
+	public static function vpapi_main_thumb_url_for_video_id( $video_id ) {
+		$video_id = trim( (string) $video_id );
+		if ( '' === $video_id ) {
+			return '';
+		}
+
+		$csv_data = self::lvjm_get_vpapi_details_csv_data();
+		if ( empty( $csv_data['by_video_id'] ) ) {
+			return '';
+		}
+
+		return isset( $csv_data['by_video_id'][ $video_id ] ) ? $csv_data['by_video_id'][ $video_id ] : '';
+	}
+
+	/**
+	 * Find CSV rows by performer name.
+	 *
+	 * @param string $performer_query Performer search query.
+	 * @return array|null Matching rows or null on failure.
+	 */
+	private function lvjm_csv_find_by_performer( $performer_query ) {
+		$normalized_query = $this->lvjm_normalize_performer_name( $performer_query );
+		if ( '' === $normalized_query ) {
+			return null;
+		}
+
+		$csv_data = self::lvjm_get_vpapi_details_csv_data();
+		if ( null === $csv_data ) {
+			return null;
+		}
+
+		$mtime    = isset( $csv_data['mtime'] ) ? (int) $csv_data['mtime'] : 0;
+		$csv_rows = isset( $csv_data['rows'] ) ? (array) $csv_data['rows'] : array();
+
+		$cache_key = 'lvjm_csv_perf_' . md5( $normalized_query );
+		$cached    = get_transient( $cache_key );
+		if ( is_array( $cached ) && isset( $cached['mtime'], $cached['rows'] ) && (int) $cached['mtime'] === (int) $mtime ) {
+			return $cached['rows'];
+		}
+
+		if ( ! empty( $csv_data['path'] ) ) {
+			$this->debug_importer_log( 'Performer CSV path resolved.', array( 'path' => $csv_data['path'] ) );
+		}
+
+		$rows = array();
+		foreach ( $csv_rows as $row ) {
+			if ( empty( $row['normalized_performer'] ) ) {
+				continue;
+			}
+			if ( $row['normalized_performer'] !== $normalized_query && false === strpos( $row['normalized_performer'], $normalized_query ) ) {
 				continue;
 			}
 
 			$rows[] = array(
-				'id'        => $video_id,
-				'title'     => $title,
-				'performer' => $performer,
-				'tags'      => $tags,
+				'id'        => isset( $row['id'] ) ? $row['id'] : '',
+				'title'     => isset( $row['title'] ) ? $row['title'] : '',
+				'performer' => isset( $row['performer'] ) ? $row['performer'] : '',
+				'tags'      => isset( $row['tags'] ) ? $row['tags'] : '',
 			);
 		}
 
@@ -1535,4 +1657,18 @@ class LVJM_Search_Videos {
 			'partner_all_videos_ids'      => array_merge( $partner_existing_videos_ids, $partner_unwanted_videos_ids ),
 		);
 	}
+}
+
+/**
+ * Get a main thumb URL from the VPAPI details CSV by video id.
+ *
+ * @param string $video_id Video id.
+ * @return string Main thumb URL.
+ */
+function lvjm_vpapi_main_thumb_url_for_video_id( $video_id ) {
+	if ( ! class_exists( 'LVJM_Search_Videos' ) || ! method_exists( 'LVJM_Search_Videos', 'vpapi_main_thumb_url_for_video_id' ) ) {
+		return '';
+	}
+
+	return LVJM_Search_Videos::vpapi_main_thumb_url_for_video_id( $video_id );
 }
