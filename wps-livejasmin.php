@@ -823,6 +823,144 @@ function lvjm_resolve_feed_id_by_term( $wp_cat, $partner_id, $fallback_feed_id )
 }
 
 /**
+ * Extract 32-hex video id candidates from a string.
+ *
+ * @param string $value Value to scan.
+ * @return array List of candidates.
+ */
+function lvjm_vpapi_extract_hex_ids_from_value( $value ) {
+	$value = (string) $value;
+	if ( '' === $value ) {
+		return array();
+	}
+	if ( preg_match_all( '/[0-9a-f]{32}/i', $value, $matches ) ) {
+		return array_map( 'strtolower', array_unique( $matches[0] ) );
+	}
+	return array();
+}
+
+/**
+ * Gather VPAPI video id candidates from known URL fields.
+ *
+ * @param array $video_infos Video info array.
+ * @return array List of candidates.
+ */
+function lvjm_vpapi_video_id_candidates( array $video_infos ) {
+	$candidates = array();
+	$fields     = array( 'video_url', 'tracking_url', 'embed', 'trailer_url', 'thumb_url' );
+	foreach ( $fields as $field ) {
+		if ( empty( $video_infos[ $field ] ) ) {
+			continue;
+		}
+		$found = lvjm_vpapi_extract_hex_ids_from_value( $video_infos[ $field ] );
+		if ( ! empty( $found ) ) {
+			$candidates = array_merge( $candidates, $found );
+		}
+	}
+	return array_values( array_unique( $candidates ) );
+}
+
+/**
+ * Resolve a VPAPI 32-hex video id from video info data.
+ *
+ * @param array $video_infos Video info array.
+ * @return string Resolved 32-hex id or empty string.
+ */
+function lvjm_resolve_vpapi_video_id( array $video_infos ) {
+	$raw_id = isset( $video_infos['id'] ) ? trim( (string) $video_infos['id'] ) : '';
+	if ( '' !== $raw_id && preg_match( '/^[0-9a-f]{32}$/i', $raw_id ) ) {
+		return strtolower( $raw_id );
+	}
+	$fields = array( 'video_url', 'tracking_url', 'embed', 'trailer_url', 'thumb_url' );
+	foreach ( $fields as $field ) {
+		if ( empty( $video_infos[ $field ] ) ) {
+			continue;
+		}
+		$found = lvjm_vpapi_extract_hex_ids_from_value( $video_infos[ $field ] );
+		if ( ! empty( $found ) ) {
+			return strtolower( $found[0] );
+		}
+	}
+	return '';
+}
+
+/**
+ * Resolve the canonical VPAPI main thumb URL for a video info array.
+ *
+ * @param array $video_infos Video info array.
+ * @return array Result with url, source, resolved_video_id, match_method.
+ */
+function lvjm_vpapi_main_thumb_for_video_infos( array $video_infos ) {
+	$result = array(
+		'url'               => '',
+		'source'            => 'api',
+		'resolved_video_id' => '',
+		'match_method'      => 'none',
+	);
+
+	if ( ! class_exists( 'LVJM_Search_Videos' ) || ! method_exists( 'LVJM_Search_Videos', 'vpapi_details_csv_data' ) ) {
+		return $result;
+	}
+
+	$resolved_id                  = lvjm_resolve_vpapi_video_id( $video_infos );
+	$result['resolved_video_id']  = $resolved_id;
+	$csv_data                     = LVJM_Search_Videos::vpapi_details_csv_data();
+	$csv_by_video_id              = is_array( $csv_data ) && isset( $csv_data['by_video_id'] ) ? (array) $csv_data['by_video_id'] : array();
+
+	if ( '' !== $resolved_id && isset( $csv_by_video_id[ $resolved_id ] ) ) {
+		$result['url']          = (string) $csv_by_video_id[ $resolved_id ];
+		$result['source']       = 'vpapi_details.csv';
+		$result['match_method'] = 'by_video_id';
+		return $result;
+	}
+
+	$performer = '';
+	$performer_keys = array( 'performer', 'performer_name', 'model', 'modelName', 'actors' );
+	foreach ( $performer_keys as $key ) {
+		if ( empty( $video_infos[ $key ] ) ) {
+			continue;
+		}
+		$performer = (string) $video_infos[ $key ];
+		break;
+	}
+	if ( '' !== $performer ) {
+		$performer_parts = preg_split( '/[;,]/', $performer );
+		$performer       = isset( $performer_parts[0] ) ? trim( (string) $performer_parts[0] ) : '';
+	}
+
+	$title = isset( $video_infos['title'] ) ? (string) $video_infos['title'] : '';
+
+	$normalized_performer = lvjm_normalize_performer_key( $performer );
+	$normalized_title     = lvjm_normalize_performer_key( $title );
+
+	if ( '' === $normalized_performer || '' === $normalized_title ) {
+		return $result;
+	}
+
+	$rows = isset( $csv_data['rows'] ) ? (array) $csv_data['rows'] : array();
+	foreach ( $rows as $row ) {
+		$row_performer = isset( $row['normalized_performer'] ) ? (string) $row['normalized_performer'] : '';
+		$row_title     = isset( $row['normalized_title'] ) ? (string) $row['normalized_title'] : '';
+		if ( '' === $row_performer || '' === $row_title ) {
+			continue;
+		}
+		if ( $row_performer !== $normalized_performer || $row_title !== $normalized_title ) {
+			continue;
+		}
+		$main_thumb = isset( $row['main_thumb_url'] ) ? (string) $row['main_thumb_url'] : '';
+		if ( '' === $main_thumb ) {
+			continue;
+		}
+		$result['url']          = $main_thumb;
+		$result['source']       = 'vpapi_details.csv';
+		$result['match_method'] = 'by_performer_title';
+		return $result;
+	}
+
+	return $result;
+}
+
+/**
  * Extract attachment ID from media HTML or latest attachment for the post.
  *
  * @param string $media_html Media HTML.
