@@ -634,7 +634,7 @@ public function get_whitelabel_id_from_url( $url ) {
 		 * @param string     $source  unused. To remove.
 		 * @return mixed The reference of a variable.
 		 */
-		public function media_sideload_image( $file, $post_id, $desc = null, $source ) {
+		public function media_sideload_image( $file, $post_id, $desc = null, $source = null ) {
 			require_once ABSPATH . 'wp-admin/includes/media.php';
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 			require_once ABSPATH . 'wp-admin/includes/image.php';

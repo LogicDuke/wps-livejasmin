@@ -197,15 +197,34 @@ function lvjm_import_video( $params = '' ) {
 				$default_thumb = 'http:' . $default_thumb;
 			}
 
-			// magic sideload image returns an HTML image, not an ID.
-			$media = LVJM()->media_sideload_image( $default_thumb, $post_id, null, $params['partner_id'] );
+			$current_thumb_id = get_post_thumbnail_id( $post_id );
+			$stored_thumb_url = (string) get_post_meta( $post_id, 'lvjm_thumb_url', true );
+			$thumb_file_path  = $current_thumb_id ? get_attached_file( $current_thumb_id ) : '';
+			$thumb_missing    = $current_thumb_id && ( '' === $thumb_file_path || ! file_exists( $thumb_file_path ) );
+			$should_refresh   = ! $current_thumb_id || $thumb_missing || $stored_thumb_url !== $default_thumb;
 
-			if ( ! empty( $media ) && ! is_wp_error( $media ) ) {
-				$attachment_id = lvjm_resolve_attachment_id_from_media( $media, $post_id );
+			if ( $should_refresh ) {
+				require_once ABSPATH . 'wp-admin/includes/media.php';
+				require_once ABSPATH . 'wp-admin/includes/file.php';
+				require_once ABSPATH . 'wp-admin/includes/image.php';
+
+				$attachment_id = media_sideload_image( $default_thumb, $post_id, null, 'id' );
+				if ( is_wp_error( $attachment_id ) ) {
+					// Fallback to legacy HTML return if needed.
+					$media = LVJM()->media_sideload_image( $default_thumb, $post_id, null, $params['partner_id'] );
+					if ( ! empty( $media ) && ! is_wp_error( $media ) ) {
+						$attachment_id = lvjm_resolve_attachment_id_from_media( $media, $post_id );
+					} else {
+						$attachment_id = 0;
+					}
+				}
+
 				if ( $attachment_id ) {
 					set_post_thumbnail( $post_id, $attachment_id );
 				}
 			}
+
+			update_post_meta( $post_id, 'lvjm_thumb_url', $default_thumb );
 		}
 
 		// post format video.
