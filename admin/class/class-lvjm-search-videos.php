@@ -413,6 +413,17 @@ class LVJM_Search_Videos {
 	}
 
 	/**
+	 * Normalize CSV titles for lookup matching.
+	 *
+	 * @param string $title Title to normalize.
+	 * @return string Normalized title.
+	 */
+	private static function lvjm_normalize_csv_title_value( $title ) {
+		$normalized = strtolower( trim( (string) $title ) );
+		return preg_replace( '/[^a-z0-9]/', '', $normalized );
+	}
+
+	/**
 	 * Normalize a CSV main thumb URL.
 	 *
 	 * @param string $url URL to normalize.
@@ -500,6 +511,7 @@ class LVJM_Search_Videos {
 			}
 
 			$normalized_performer = self::lvjm_normalize_performer_name_value( $performer );
+			$normalized_title     = self::lvjm_normalize_csv_title_value( $title );
 			if ( '' === $normalized_performer ) {
 				continue;
 			}
@@ -509,7 +521,9 @@ class LVJM_Search_Videos {
 				'title'                => $title,
 				'performer'            => $performer,
 				'tags'                 => $tags,
+				'main_thumb_url'       => $normalized_thumb,
 				'normalized_performer' => $normalized_performer,
+				'normalized_title'     => $normalized_title,
 				'preferred_thumb_id'   => $preferred_thumb_id,
 			);
 		}
@@ -524,6 +538,15 @@ class LVJM_Search_Videos {
 		set_transient( $cache_key, $cache, 6 * HOUR_IN_SECONDS );
 
 		return $cache;
+	}
+
+	/**
+	 * Get cached VPAPI details CSV data.
+	 *
+	 * @return array|null Cached CSV data or null on failure.
+	 */
+	public static function vpapi_details_csv_data() {
+		return self::lvjm_get_vpapi_details_csv_data();
 	}
 
 	/**

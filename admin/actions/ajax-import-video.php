@@ -95,29 +95,18 @@ function lvjm_import_video( $params = '' ) {
 			);
 		}
 
-		$video_id   = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
-		$api_thumb  = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
-		$csv_url    = '' !== $video_id ? lvjm_vpapi_main_thumb_url_for_video_id( $video_id ) : '';
-		$thumb_source = 'api';
+		$raw_video_id        = isset( $params['video_infos']['id'] ) ? (string) $params['video_infos']['id'] : '';
+		$resolved_video_id   = lvjm_resolve_vpapi_video_id( $params['video_infos'] );
+		$video_id_candidates = lvjm_vpapi_video_id_candidates( $params['video_infos'] );
+		$api_thumb           = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
+		$chosen_thumb_data   = lvjm_vpapi_main_thumb_for_video_infos( $params['video_infos'] );
+		$csv_url             = isset( $chosen_thumb_data['url'] ) ? (string) $chosen_thumb_data['url'] : '';
+		$thumb_source        = '' !== $csv_url && isset( $chosen_thumb_data['source'] ) ? (string) $chosen_thumb_data['source'] : 'api';
+		$thumb_match_method  = isset( $chosen_thumb_data['match_method'] ) ? (string) $chosen_thumb_data['match_method'] : 'none';
 		if ( '' !== $csv_url ) {
 			$params['video_infos']['thumb_url'] = $csv_url;
-			$thumb_source                       = 'vpapi_details.csv';
 		}
-
-		if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
-			$chosen_thumb = isset( $params['video_infos']['thumb_url'] ) ? (string) $params['video_infos']['thumb_url'] : '';
-			error_log(
-				sprintf(
-					'[TMW-THUMB] video_id=%s csv_hit=%s csv_url=%s api_thumb=%s chosen=%s source=%s',
-					$video_id,
-					'' !== $csv_url ? 'yes' : 'no',
-					$csv_url,
-					$api_thumb,
-					$chosen_thumb,
-					$thumb_source
-				)
-			);
-		}
+		$video_id = $raw_video_id;
 
 		// add partner id.
 		update_post_meta( $post_id, 'partner', (string) $params['partner_id'] );
@@ -215,28 +204,39 @@ function lvjm_import_video( $params = '' ) {
 		// downloading main thumb.
 		if ( 'on' === xbox_get_field_value( 'lvjm-options', 'import-thumb' ) ) {
 
-			$default_thumb = (string) $params['video_infos']['thumb_url'];
+			$desired_thumb = (string) $params['video_infos']['thumb_url'];
 
-			if ( strpos( $default_thumb, 'http' ) === false ) {
-				$default_thumb = 'http:' . $default_thumb;
+			if ( '' !== $desired_thumb && strpos( $desired_thumb, 'http' ) === false ) {
+				$desired_thumb = 'http:' . $desired_thumb;
 			}
 
-			$current_thumb_id = get_post_thumbnail_id( $post_id );
-			$stored_thumb_url = (string) get_post_meta( $post_id, 'lvjm_thumb_url', true );
-			$thumb_file_path  = $current_thumb_id ? get_attached_file( $current_thumb_id ) : '';
-			$thumb_missing    = $current_thumb_id && ( '' === $thumb_file_path || ! file_exists( $thumb_file_path ) );
-			$should_refresh   = ! $current_thumb_id || $thumb_missing || $stored_thumb_url !== $default_thumb;
-			$attachment_id    = $current_thumb_id;
+			$current_thumb_id      = get_post_thumbnail_id( $post_id );
+			$stored_thumb_url      = (string) get_post_meta( $post_id, 'lvjm_thumb_url', true );
+			$current_thumb_url     = $current_thumb_id ? wp_get_attachment_url( $current_thumb_id ) : '';
+			$current_imported_flag = $current_thumb_id ? (int) get_post_meta( $current_thumb_id, 'lvjm_imported_thumb', true ) : 0;
+			$thumb_file_path       = $current_thumb_id ? get_attached_file( $current_thumb_id ) : '';
+			$thumb_missing         = $current_thumb_id && ( '' === $thumb_file_path || ! file_exists( $thumb_file_path ) );
+			$thumb_matches         = ( '' !== $current_thumb_url && $current_thumb_url === $desired_thumb )
+				|| ( '' !== $stored_thumb_url && $stored_thumb_url === $desired_thumb );
+			$should_refresh        = '' !== $desired_thumb
+				&& ( ! $current_thumb_id
+					|| $thumb_missing
+					|| '' === $current_thumb_url
+					|| $stored_thumb_url !== $desired_thumb
+					|| ( ! $thumb_matches && $current_imported_flag ) );
+			$attachment_id         = $current_thumb_id;
+			$previous_thumb_id     = $current_thumb_id;
+			$refreshed             = 'no';
 
 			if ( $should_refresh ) {
 				require_once ABSPATH . 'wp-admin/includes/media.php';
 				require_once ABSPATH . 'wp-admin/includes/file.php';
 				require_once ABSPATH . 'wp-admin/includes/image.php';
 
-				$attachment_id = media_sideload_image( $default_thumb, $post_id, null, 'id' );
+				$attachment_id = media_sideload_image( $desired_thumb, $post_id, null, 'id' );
 				if ( is_wp_error( $attachment_id ) ) {
 					// Fallback to legacy HTML return if needed.
-					$media = LVJM()->media_sideload_image( $default_thumb, $post_id, null, $params['partner_id'] );
+					$media = LVJM()->media_sideload_image( $desired_thumb, $post_id, null, $params['partner_id'] );
 					if ( ! empty( $media ) && ! is_wp_error( $media ) ) {
 						$attachment_id = lvjm_resolve_attachment_id_from_media( $media, $post_id );
 					} else {
@@ -246,11 +246,42 @@ function lvjm_import_video( $params = '' ) {
 
 				if ( $attachment_id ) {
 					set_post_thumbnail( $post_id, $attachment_id );
+					update_post_meta( $post_id, 'lvjm_thumb_url', $desired_thumb );
+					update_post_meta( $post_id, 'lvjm_thumb_attachment_id', (int) $attachment_id );
+					update_post_meta( $attachment_id, 'lvjm_imported_thumb', 1 );
+					if ( $previous_thumb_id && $previous_thumb_id !== $attachment_id ) {
+						$previous_imported = (int) get_post_meta( $previous_thumb_id, 'lvjm_imported_thumb', true );
+						if ( $previous_imported ) {
+							wp_delete_attachment( $previous_thumb_id, true );
+						}
+					}
+					$refreshed = 'yes';
 				}
 			}
 
-			update_post_meta( $post_id, 'lvjm_thumb_url', $default_thumb );
-			update_post_meta( $post_id, 'lvjm_thumb_attachment_id', (int) $attachment_id );
+			if ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER ) {
+				$featured_after_id  = get_post_thumbnail_id( $post_id );
+				$featured_after_url = $featured_after_id ? wp_get_attachment_url( $featured_after_id ) : '';
+				$meta_thumb         = (string) get_post_meta( $post_id, 'thumb', true );
+				error_log(
+					sprintf(
+						'[TMW-THUMB] post=%d raw_id=%s resolved_id=%s candidates=%s csv_hit=%s csv_url=%s match=%s desired=%s api=%s featured_before=%s refreshed=%s featured_after=%s meta_thumb=%s',
+						$post_id,
+						$raw_video_id,
+						$resolved_video_id,
+						implode( ',', $video_id_candidates ),
+						'' !== $csv_url ? 'yes' : 'no',
+						$csv_url,
+						$thumb_match_method,
+						$desired_thumb,
+						$api_thumb,
+						$current_thumb_id ? $current_thumb_id . ':' . $current_thumb_url : 'none',
+						$refreshed,
+						$featured_after_id ? $featured_after_id . ':' . $featured_after_url : 'none',
+						$meta_thumb
+					)
+				);
+			}
 		}
 
 		// post format video.
