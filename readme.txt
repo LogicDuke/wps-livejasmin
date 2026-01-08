@@ -16,6 +16,9 @@ To enable importer debug logs, define `LVJM_DEBUG_IMPORTER` as `true` in `wp-con
 Performer searches cache the detected VPAPI filter parameter in `lvjm_vpapi_perf_filter_param_v2` (1 day) and matched results in `lvjm_perf_v2_{orientation}_{tag-or-all}_{normalized_performer}` (6 hours, 10 minutes when empty).
 
 == Changelog ==
+= 1.4.2 = 2025-09-11
+* Fixed: Removed hardcoded whitelabel parameters; default destination now follows plugin settings
+
 = 1.3.2 = 2025-07-28
 * Fixed: Fix translation files issues that could prevent the plugin from installing and work properly in de, it, ru and zh languages
 
