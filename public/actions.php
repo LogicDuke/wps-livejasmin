@@ -56,7 +56,7 @@ function lvjm_insert_video( $content ) {
 /**
  * Add site redirection param in Livejasmin script tag.
  * - Must set &site=jasmin by default.
- * - Must set $wl3&cobrandId=XXXXXX if XXXXXX exists, with XXXXXX is a 6 digit ID retrieved from the site redirect option when the options are saved.
+ * - Must set siteId=wl3&cobrandId=XXXXXX when a whitelabel ID is configured.
  * Also add responsiveness to the video player.
  *
  * @param mixed  $meta_value The meta value of the current post meta.
@@ -86,25 +86,8 @@ function lvjm_set_embed_redirect_and_responsiveness( $meta_value, $object_id, $m
         }
     }
 
-    // Build the redirect parameters (site or wl3) once
-    $redirect_param = array( 'siteId' => 'jsm' );
-    $saved_options  = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
-    // If a whitelabel ID is saved, use it.  Otherwise fall back to the built‑in ID.
-    if ( isset( $saved_options['whitelabel_id'] ) && '' !== (string) $saved_options['whitelabel_id'] ) {
-        $redirect_param = array(
-            'siteId'    => 'wl3',
-            'cobrandId' => (string) $saved_options['whitelabel_id'],
-        );
-    } else {
-        // Fallback: always send traffic to the configured cobrand
-        $redirect_param = array(
-            'siteId'    => 'wl3',
-            'cobrandId' => '261146',
-        );
-    }
-
     // Helper closure to update embed HTML
-    $apply_embed_modifications = function ( $embed_html ) use ( $redirect_param, $meta_cache, $object_id ) {
+    $apply_embed_modifications = function ( $embed_html ) use ( $meta_cache, $object_id ) {
         // Skip if there is no lvjm-player marker
         if ( strpos( (string) $embed_html, 'lvjm-player' ) === false ) {
             return $embed_html;
@@ -149,9 +132,9 @@ function lvjm_set_embed_redirect_and_responsiveness( $meta_value, $object_id, $m
                 return __( 'This video is not available in your country', 'lvjm_lang' );
             }
         }
-        // Append redirect parameters to the first script tag
-        $script_tag       = $script_tags[0];
-        $script_tag->src .= '&' . http_build_query( $redirect_param );
+        // Normalize the VPAPI destination parameters for the first script tag
+        $script_tag      = $script_tags[0];
+        $script_tag->src = wpslj_normalize_vpapi_url( $script_tag->src );
         // Ensure player wrapper is responsive
         $div_tags = $meta_value_html_obj->find( 'div.player' );
         if ( 0 !== count( $div_tags ) ) {

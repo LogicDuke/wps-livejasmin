@@ -5,7 +5,7 @@
  * Description: Import LiveJasmin livecam embed videos in your WordPress posts
  * Author: WP-Script
  * Author URI: https://www.wp-script.com
- * Version: 1.3.3
+ * Version: 1.4.2
  * Text Domain: wps-livejasmin
  * Domain Path: /languages
  *
@@ -342,18 +342,30 @@ if ( ! class_exists( 'LVJM' ) ) {
 		 * Used to send traffic to the whitelabel.
 		 *
 		 * @param string $url The url of the white label.
-		 * @return string|bool The Id of the whitelabel if exists, false if not.
+		 * @return string The Id of the whitelabel if exists, empty string if not.
 		 */
-public function get_whitelabel_id_from_url( $url ) {
-    /*
-     * Always return the whitelabel ID configured by the site owner.
-     * LiveJasmin whitelabel IDs are fixed six‑digit codes.  The plugin previously
-     * attempted to scrape the ID from the whitelabel URL, which broke when
-     * LiveJasmin changed their templates.  Instead, return the ID provided in
-     * the settings.  If you wish to change it, update the string below.
-     */
-    return '261146';
-}
+		public function get_whitelabel_id_from_url( $url ) {
+			$url          = trim( (string) $url );
+			$whitelabel_id = '';
+
+			if ( '' === $url ) {
+				return '';
+			}
+
+			$parsed = wp_parse_url( $url );
+			if ( is_array( $parsed ) && isset( $parsed['query'] ) ) {
+				parse_str( $parsed['query'], $query_params );
+				if ( isset( $query_params['cobrandId'] ) ) {
+					$whitelabel_id = (string) $query_params['cobrandId'];
+				}
+			}
+
+			if ( '' === $whitelabel_id && preg_match( '/\b(\d{6})\b/', $url, $matches ) ) {
+				$whitelabel_id = $matches[1];
+			}
+
+			return wpslj_sanitize_cobrand_id( $whitelabel_id );
+		}
 
 
 		/**
@@ -676,6 +688,94 @@ public function get_whitelabel_id_from_url( $url ) {
 			}
 		}
 	}
+}
+
+/**
+ * Determine if debug logs should be written for VPAPI destination fixes.
+ *
+ * @return bool
+ */
+function wpslj_should_log_fix() {
+	return ( defined( 'WP_DEBUG' ) && WP_DEBUG ) || ( defined( 'LVJM_DEBUG_IMPORTER' ) && LVJM_DEBUG_IMPORTER );
+}
+
+/**
+ * Write a tagged debug log entry when enabled.
+ *
+ * @param string $message Message to log.
+ * @return void
+ */
+function wpslj_log_fix( $message ) {
+	if ( ! wpslj_should_log_fix() ) {
+		return;
+	}
+	if ( function_exists( 'WPSCORE' ) ) {
+		WPSCORE()->write_log( 'info', $message, __FILE__, __LINE__ );
+		return;
+	}
+	error_log( $message );
+}
+
+/**
+ * Sanitize a cobrand id and block legacy hardcoded values.
+ *
+ * @param string $cobrand_id Raw cobrand id.
+ * @return string Sanitized cobrand id or empty string.
+ */
+function wpslj_sanitize_cobrand_id( $cobrand_id ) {
+	$cobrand_id = preg_replace( '/\D+/', '', (string) $cobrand_id );
+	if ( '' === $cobrand_id ) {
+		return '';
+	}
+	if ( '261146' === $cobrand_id ) {
+		wpslj_log_fix( '[TMW-LJ-FIX] blocked legacy cobrandId 261146' );
+		return '';
+	}
+	return $cobrand_id;
+}
+
+/**
+ * Get VPAPI destination parameters based on saved plugin settings.
+ *
+ * @return array
+ */
+function wpslj_get_destination_params() {
+	$saved_options = WPSCORE()->get_product_option( 'LVJM', 'livejasmin_options' );
+	$cobrand_id   = '';
+	if ( isset( $saved_options['whitelabel_id'] ) ) {
+		$cobrand_id = wpslj_sanitize_cobrand_id( $saved_options['whitelabel_id'] );
+	}
+
+	if ( '' === $cobrand_id ) {
+		$params = array( 'siteId' => 'jsm' );
+	} else {
+		$params = array(
+			'siteId'    => 'wl3',
+			'cobrandId' => (string) $cobrand_id,
+		);
+	}
+
+	$log_cobrand = isset( $params['cobrandId'] ) ? $params['cobrandId'] : '';
+	wpslj_log_fix( sprintf( '[TMW-LJ-FIX] destination params: siteId=%s cobrandId=%s', $params['siteId'], $log_cobrand ) );
+
+	return $params;
+}
+
+/**
+ * Normalize VPAPI URLs with the configured destination params.
+ *
+ * @param string $url VPAPI URL to normalize.
+ * @return string Normalized URL.
+ */
+function wpslj_normalize_vpapi_url( $url ) {
+	$url = (string) $url;
+	if ( '' === $url ) {
+		return '';
+	}
+	$clean_url     = remove_query_arg( array( 'siteId', 'cobrandId' ), $url );
+	$normalized_url = add_query_arg( wpslj_get_destination_params(), $clean_url );
+	wpslj_log_fix( sprintf( '[TMW-LJ-FIX] normalized vpapi url: %s', $normalized_url ) );
+	return $normalized_url;
 }
 
 if ( ! function_exists( 'LVJM' ) ) {

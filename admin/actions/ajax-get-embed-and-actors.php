@@ -64,21 +64,19 @@ function lvjm_get_embed_and_actors( $params = '' ) {
 	}
 
 	$embed_script = str_replace( '{CONTAINER}', $container_id, $response_body['data']['playerEmbedScript'] );
-    // Append whitelabel redirect parameters directly into the embed script URL.  Without this
-    // the player defaults to `siteId=jsm` which sends users to the main LiveJasmin domain.
-    $whitelabel_id = ! empty( $saved_partner_options['whitelabel_id'] ) ? $saved_partner_options['whitelabel_id'] : '261146';
-    $redirect_query = http_build_query( array( 'siteId' => 'wl3', 'cobrandId' => (string) $whitelabel_id ) );
-    // Replace the src attribute by appending the query string.  We need to account for
-    // existing query parameters so we choose '&' or '?' as the delimiter accordingly.
-    $embed_script = preg_replace_callback( '/<script\s+[^>]*src="([^"]+)"/', function ( $matches ) use ( $redirect_query ) {
-        $src       = $matches[1];
-        $delimiter = ( false === strpos( $src, '?' ) ) ? '?' : '&';
-        return '<script src="' . $src . $delimiter . $redirect_query . '"';
-    }, $embed_script );
+	$normalized_src = '';
+	$embed_script   = preg_replace_callback( '/<script\s+[^>]*src="([^"]+)"/', function ( $matches ) use ( &$normalized_src ) {
+		$normalized_src = wpslj_normalize_vpapi_url( $matches[1] );
+		return str_replace( $matches[1], $normalized_src, $matches[0] );
+	}, $embed_script );
 	$output       = array(
 		'performer_name' => lvjm_get_performer_name_by_id( $response_body['data']['performerId'] ),
 		'embed'          => $embed_container . $embed_script,
 	);
+	if ( wpslj_should_log_fix() ) {
+		$log_post_id = isset( $params['post_id'] ) ? (string) $params['post_id'] : 'unknown';
+		wpslj_log_fix( sprintf( '[TMW-LJ-FIX] ajax embed generated for post=%s url=%s', $log_post_id, $normalized_src ) );
+	}
 	if ( ! $ajax_call ) {
 		return $output;
 	}
