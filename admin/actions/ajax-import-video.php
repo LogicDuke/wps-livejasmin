@@ -8,6 +8,10 @@
 // Exit if accessed directly.
 defined( 'ABSPATH' ) || die( 'Cheatin&#8217; uh?' );
 
+if ( ! function_exists( 'lvjm_resolve_destination_term_from_mapping' ) ) {
+	require_once LVJM_DIR . 'admin/actions/lvjm-taxonomy-mapping.php';
+}
+
 /**
  * Import videos in Ajax or PHP call.
  *
@@ -137,8 +141,14 @@ function lvjm_import_video( $params = '' ) {
 		$custom_uploader = xbox_get_field_value( 'lvjm-options', 'custom-uploader' );
 		update_post_meta( $post_id, '' !== $custom_uploader ? $custom_uploader : 'uploader', (string) $params['video_infos']['uploader'] );
 		// add category.
-		$custom_taxonomy = xbox_get_field_value( 'lvjm-options', 'custom-video-categories' );
-		wp_set_object_terms( $post_id, intval( $params['cat_wp'] ), '' !== $custom_taxonomy ? $custom_taxonomy : 'category', false );
+		$custom_taxonomy   = xbox_get_field_value( 'lvjm-options', 'custom-video-categories' );
+		$category_taxonomy = '' !== $custom_taxonomy ? $custom_taxonomy : 'category';
+		$resolved_cat_wp   = intval( $params['cat_wp'] );
+		$mapped_cat_wp     = lvjm_resolve_destination_term_from_mapping( (string) $params['cat_s'], $category_taxonomy );
+		if ( $mapped_cat_wp > 0 ) {
+			$resolved_cat_wp = $mapped_cat_wp;
+		}
+		wp_set_object_terms( $post_id, $resolved_cat_wp, $category_taxonomy, false );
 		// add tags.
 		$custom_tags = xbox_get_field_value( 'lvjm-options', 'custom-video-tags' );
 		if ( '' === $custom_tags ) {
@@ -150,6 +160,12 @@ function lvjm_import_video( $params = '' ) {
 				'mode'   => 'import',
 				'source' => 'video_infos',
 			)
+		);
+		$normalized_tags = lvjm_filter_import_tags_against_category_context(
+			$normalized_tags,
+			(string) $params['cat_s'],
+			$resolved_cat_wp,
+			$category_taxonomy
 		);
 		wp_set_post_terms( $post_id, $normalized_tags, LVJM()->call_by_ref( $custom_tags ), false );
 		// add actors.
